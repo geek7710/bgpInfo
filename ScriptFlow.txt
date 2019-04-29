@@ -1,0 +1,98 @@
+1. Check BGP neighbor state
+
+r-brigg-1001x-mke01-3#sh ip bgp neigh 10.251.2.52 | i state
+  BGP state = Established, up for 01:55:05
+  Do log neighbor state changes (via global configuration)
+Connection state is ESTAB, I/O status: 1, unread input bytes: 0            
+r-brigg-1001x-mke01-3#
+
+2. Is there a VRF
+
+r-brigg-1001x-mke01-3#sh ip vrf
+  Name                             Default RD            Interfaces
+  IWAN-INET2                       <not set>             Lo900
+                                                         Gi0/0/2
+  Mgmt-intf                        <not set>             Gi0
+
+3. check cef
+
+r-brigg-1001x-mke01-3#sh ip cef 10.251.2.52
+10.251.2.52/32
+  attached to Tunnel20
+
+4. If Tunnel, get tunnel IP address as this is neighbor IP I will be looking at remote end
+
+r-brigg-1001x-mke01-3#sh ip int b | i Tunnel20
+Tunnel20               10.251.2.1      YES NVRAM  up                    up
+
+
+r-brigg-1001x-mke01-3#
+
+5. if there's a VRF check CEF on VRF to get to Circuit Interface
+
+r-brigg-1001x-mke01-3#sh ip cef vrf IWAN-INET2 10.251.2.52
+0.0.0.0/0
+  nexthop 172.22.75.4 GigabitEthernet0/0/2
+  
+6. Query the log
+
+r-brigg-1001x-mke01-3#sh log | i 0/0/2
+r-brigg-1001x-mke01-3#
+
+7. Run a findstring to Verify device is managed
+
+
+[brigg-s-bmn05 migboni 10:34:27]~ $ findstring -s 'ip address 10.251.2.52 '
+
+Fri Apr 26 10:34:47 CDT 2019
+Search Criteria: All files and lines that match 'ip address 10.251.2.52 '
+ Show the stanza heading lines for the matching lines.
+find: `/home/cvs/customers/brigg/CVSROOT/Emptydir': Permission denied
+
+Customer: brigg
+Device:  r-brigg-4331-srl01-1.brigg.remote.binc.net
+interface Tunnel20
+ ip address 10.251.2.52 255.255.255.0
+
+
+8. Run show BGP neighbor on remote host if managed by CDW
+
+[brigg-s-bmn05 migboni 10:39:07]~ $ sudo -u binc /opt/sbin/clogin -c "show ip bgp neigh 10.251.2.1 | i state" r-brigg-4331-srl01-1.brigg.remote.binc.net
+
+
+r-brigg-4331-srl01-1#show ip bgp neigh 10.251.2.1 | i state
+  BGP state = Established, up for 02:03:51
+  Do log neighbor state changes (via global configuration)
+Connection state is ESTAB, I/O status: 1, unread input bytes: 0 
+
+
+9. Check CEF information on remote device
+sudo -u binc /opt/sbin/clogin -c "show ip cef 10.251.2.1" r-brigg-4331-srl01-1.brigg.remote.binc.net
+
+r-brigg-4331-srl01-1#show ip cef 10.251.2.1
+10.251.2.1/32
+  attached to Tunnel20
+
+
+10. Verify if there's a VRF on remote device
+sudo -u binc /opt/sbin/clogin -c "show ip vrf" r-brigg-4331-srl01-1.brigg.remote.binc.net
+
+r-brigg-4331-srl01-1#show ip vrf
+  Name                             Default RD            Interfaces
+  IWAN-INET1                       <not set>             Gi0/0/1
+  IWAN-INET2                       <not set>             Gi0/0/2
+  Mgmt-intf                        <not set>             Gi0
+  
+  
+11. Verify which VRF has the interface
+
+sudo -u binc /opt/sbin/clogin -c "show ip cef vrf IWAN-INET1 10.251.2.1" r-brigg-4331-srl01-1.brigg.remote.binc.net
+
+r-brigg-4331-srl01-1#show ip cef vrf IWAN-INET1 10.251.2.1
+0.0.0.0/0
+  nexthop 12.248.113.109 GigabitEthernet0/0/1
+r-brigg-4331-srl01-1#exit
+
+12. Query LOG
+sudo -u binc /opt/sbin/clogin -c "show log | i 0/0/1" r-brigg-4331-srl01-1.brigg.remote.binc.net
+

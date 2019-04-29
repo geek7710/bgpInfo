@@ -1,0 +1,32 @@
+[brigg-s-bmn05 migboni 10:39:07]~ $ sudo -u binc /opt/sbin/clogin -c "show ip bgp neigh 10.251.2.1 | i state" r-brigg-4331-srl01-1.brigg.remote.binc.net
+r-brigg-4331-srl01-1.brigg.remote.binc.net
+spawn telnet r-brigg-4331-srl01-1.brigg.remote.binc.net
+Trying 172.25.0.1...
+Connected to r-brigg-4331-srl01-1.brigg.remote.binc.net.
+Escape character is '^]'.
+
+
+**********ATTENTION*********
+
+THIS ROUTER HAS A UCS-E MODULE INSTALLED AND IS RUNNING VMs
+THIS NOTICE IS TO LET YOU KNOW TO TAKE EXTRA CARE WHEN DOING RMA'S AND RELOADS
+
+****************************
+
+Hope you're having a GREAT day!
+
+
+User Access Verification
+
+Username: brigg-rancid
+Password: 
+
+r-brigg-4331-srl01-1#
+r-brigg-4331-srl01-1#terminal length 0
+r-brigg-4331-srl01-1#terminal width 132
+r-brigg-4331-srl01-1#show ip bgp neigh 10.251.2.1 | i state
+  BGP state = Established, up for 02:03:51
+  Do log neighbor state changes (via global configuration)
+Connection state is ESTAB, I/O status: 1, unread input bytes: 0            
+r-brigg-4331-srl01-1#exit
+Connection closed by foreign host.
