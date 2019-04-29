@@ -12,14 +12,10 @@ import inspect
 from multiprocessing import Process
 
 
-class GetBGPInformation(object):
+class LoggerClass(object):
 
-    def __init__(self):
-        # Instantiate variables to be used throughout this class
-        self.peerIP = ''
-        self.hostname = ''
-        self.bgpEvent = ''
-
+    @staticmethod
+    def logger():
         # setup logging module at class initialization
         self.bgpLogger = logging.getLogger(__name__)
         self.bgpLogger.setLevel(logging.INFO)
@@ -34,8 +30,14 @@ class GetBGPInformation(object):
         # Adding handlers to the logger
         self.bgpLogger.addHandler(cliHandler)
 
-        # declaring a global variable to the instance
-        self.bgpSummary = {}
+
+class GetBGPInformation(object):
+
+    def __init__(self):
+        # Instantiate variables to be used throughout this class
+        self.peerIP = ''
+        self.hostname = ''
+        self.bgpEvent = ''
 
 
     def inputFromUser(self):
