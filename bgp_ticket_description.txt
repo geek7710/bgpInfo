@@ -1,0 +1,2 @@
+BGP adjacency is down for neighbor 172.16.0.239 
+ Log message: <189>Dec 10 02:53:06 wp-nwk-atm-xr.gpi.remote.binc.net 280875: Dec 10 00:53:05.371 PST: %BGP-5-ADJCHANGE: neighbor 172.16.0.239 Down BGP Notification received
