@@ -1,0 +1,70 @@
+
+
+sudo -u binc /opt/sbin/clogin -c 'sh ip cef 172.16.1.2'  wp-hauppauge.gpi.remote.binc.net
+
+sudo -u binc /opt/sbin/clogin -c 'sh ip int b | i Tunnel1002' wp-hauppauge.gpi.remote.binc.net
+
+ =======================
+
+sudo -u binc /opt/sbin/clogin -c 'show dmvpn interface Tunnel1002 | i 172.16.1.2' wp-hauppauge.gpi.remote.binc.net
+
+WP-Hauppauge#show dmvpn interface Tunnel1002 | i 172.16.1.2
+     1 204.58.254.12        172.16.1.2    UP 01:06:14     S
+     
+=======================
+ 
+ 204.58.254.12
+ 
+ sudo -u binc /opt/sbin/clogin -c 'show ip vrf ' wp-hauppauge.gpi.remote.binc.net
+ 
+ If no VRF then ping NBMA address source interface GigabitEthernet0/0
+ 
+ sudo -u binc /opt/sbin/clogin -c 'ping  204.58.254.12 source GigabitEthernet0/0' wp-hauppauge.gpi.remote.binc.net
+ 
+=======================
+
+sudo -u binc /opt/sbin/clogin -c 'show run interface GigabitEthernet0/0 | i description' wp-hauppauge.gpi.remote.binc.net
+
+WP-Hauppauge#show run interface GigabitEthernet0/0 | i description
+ description INTERNET-CLOUD
+WP-Hauppauge#exit
+
+
+=======================
+ 
+sudo -u binc /opt/sbin/clogin -c 'show run int Tunnel1002 | i source' wp-hauppauge.gpi.remote.binc.net
+
+WP-Hauppauge#show run int Tunnel1002 | i source
+ tunnel source GigabitEthernet0/0
+WP-Hauppauge#exit
+
+ =======================
+ 
+sudo -u binc /opt/sbin/clogin -c 'show log | i 0/0'  wp-hauppauge.gpi.remote.binc.net
+
+
+ =======================
+
+sudo -u binc /opt/sbin/clogin -c 'show ip bgp neigh 172.16.1.2 | i host' wp-hauppauge.gpi.remote.binc.net
+
+RECURRING: BGP adjacency down for neighbor 172.16.1.2  Log message: <189>May  8 07:11:11 wp-hauppauge.gpi.remote.binc.net 26735: May  8 08:11:10.598 EDT: %BGP
+
+SW
+wp-houstonwq2-sw1.gpi.remote.hms.cdw.com
+
+RT
+wp-berkeley.gpi.remote.hms.cdw.com
+
+
+WP-Hauppauge#sh ip cef 172.16.1.2
+172.16.1.0/24
+  attached to Tunnel1002
+
+WP-Hauppauge#show bgp neigh 172.16.1.2 | i host
+Local host: 172.16.1.133, Local port: 21061
+Foreign host: 172.16.1.2, Foreign port: 179
+
+
+
+
+
