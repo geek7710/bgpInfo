@@ -1,16 +1,46 @@
+RECURRING: BGP adjacency down for neighbor 172.16.1.2  Log message: <189>May  8 07:11:11 wp-hauppauge.gpi.remote.binc.net 26735: May  8 08:11:10.598 EDT: %BGP
+
+
+BGP adjacency is down for neighbor 172.16.0.2 
+ Log message: <189>Dec 28 07:52:37 wp-knox.gpi.remote.hms.cdw.com 238634: 238628: Dec 28 09:52:36.469 PST: %BGP-5-ADJCHANGE: neighbor 172.16.0.2 Down Interface flap
+ 
+
+
+r-brigg-4331-hde01-1.brigg.remote.binc.net
+sudo -u  binc /opt/sbin/clogin -c 'sh ip bgp summ' r-brigg-4331-hde01-1.brigg.remote.binc.net
+
+
+=======================
 
 
 sudo -u binc /opt/sbin/clogin -c 'sh ip cef 172.16.1.2'  wp-hauppauge.gpi.remote.binc.net
 
 sudo -u binc /opt/sbin/clogin -c 'sh ip int b | i Tunnel1002' wp-hauppauge.gpi.remote.binc.net
 
- =======================
+
+WP-Hauppauge#sh ip cef 204.58.254.12
+204.58.254.12/32
+  nexthop 96.56.182.45 GigabitEthernet0/0
+  
+RBD-SantaMaria-RTR1#sh ip cef 10.46.160.130
+10.46.160.130/32
+  attached to GigabitEthernet0/0/1
+
+
+=======================
 
 sudo -u binc /opt/sbin/clogin -c 'show dmvpn interface Tunnel1002 | i 172.16.1.2' wp-hauppauge.gpi.remote.binc.net
 
+sudo -u binc /opt/sbin/clogin -c 'show dmvpn interface Tunnel1002' wp-hauppauge.gpi.remote.binc.net
+
 WP-Hauppauge#show dmvpn interface Tunnel1002 | i 172.16.1.2
      1 204.58.254.12        172.16.1.2    UP 01:06:14     S
+
+2019-05-09 14:40:39,404 - INFO - clean_clogin_output() method
+WP-Knox#show dmvpn interface Tunnel2 | i 172.16.0.2
+     1 204.58.254.10        172.16.0.2    UP 00:05:48     S
      
+    
 =======================
  
  204.58.254.12
@@ -46,9 +76,8 @@ sudo -u binc /opt/sbin/clogin -c 'show log | i 0/0'  wp-hauppauge.gpi.remote.bin
  =======================
 
 sudo -u binc /opt/sbin/clogin -c 'show ip bgp neigh 172.16.1.2 | i host' wp-hauppauge.gpi.remote.binc.net
-
-RECURRING: BGP adjacency down for neighbor 172.16.1.2  Log message: <189>May  8 07:11:11 wp-hauppauge.gpi.remote.binc.net 26735: May  8 08:11:10.598 EDT: %BGP
-
+ 
+ 
 SW
 wp-houstonwq2-sw1.gpi.remote.hms.cdw.com
 
