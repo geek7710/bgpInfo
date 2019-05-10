@@ -92,8 +92,28 @@ class LoggerClass(object):
         # self.bgp_logger.addHandler(file_log)
         bgp_logger.addHandler(streamLog)
 
+class RecursiveLookup(object):
 
-class CiscoCommands(object):
+    def is_tunnel(self, source_interface):
+        if 'Tunnel' in source_interface:
+            bgp_logger.info('Found a Tunnel Interface')
+            nbma_end_ip = self.show_dmvpn_interface(source_interface,
+                                                     neighbor_ip)
+            bgp_logger.info('nbma Tunnel %s'%nbma_end_ip)
+        else:
+            bgp_logger.info('Found no Tunnel Interface')
+            nbma_end_ip = None
+
+        if nbma_end_ip:
+            bgp_logger.info('Found a Tunnel Interface and '
+                'nbma ip address')
+            tunnel_dest_ip, source_interface = self.show_ip_cef(nbma_end_ip)
+            bgp_logger.info('nexthop_ip %s , source_interface %s'%
+                (nbma_end_ip, source_interface))
+        return (nbma_end_ip, source_interface)
+
+
+class CiscoCommands(RecursiveLookup):
     ''' This class will run any bgp related commands '''
 
     def __init__(self, ci_name):
@@ -142,16 +162,22 @@ class CiscoCommands(object):
         bgp_logger.info('show_ip_cef() method')
         self.command = 'show ip cef ' + ip_address
         output = self.run_cisco_commands()
-        cef_interface_pattern = re.compile(r'(?:\S+\s+)(\S+)$')
+        cef_interface_pattern = re.compile(r'(?:\s+)(\S+)(?:\s+)(\S+)$')
+        ip_pattern = re.compile(r'(\d+\.\d+\.\d+.\d+)')
         for line in output[1:]:
             if cef_interface_pattern.search(line):
-                return cef_interface_pattern.search(line).group(1)
+                nexthop_ip = cef_interface_pattern.search(line).group(1)
+                outbound_if = cef_interface_pattern.search(line).group(2)
+                if ip_pattern.search(nexthop_ip):
+                    return nexthop_ip, outbound_if
+                else:
+                    return None, outbound_if
 
     def show_dmvpn_interface(self, source_interface, neighbor_ip):
         ''' retrieve dmvpn information '''
         bgp_logger.info('show_dmvpn_interface() method')
         self.command = ('show dmvpn interface ' + source_interface + 
-                        ' | i ' + neighbor_ip)
+                        ' | i ' + neighbor_ip + " ")
 
         dmvpn_output_pattern = re.compile(r'(?:^\s+\d+\s)(\S+)(?:\s+\S+\s+)')
         output = self.run_cisco_commands()
@@ -163,15 +189,18 @@ class CiscoCommands(object):
         ''' this method will verify if nbma address 
             is reachable through a vrf '''
         bgp_logger.info('show_vrf_config() method')
-        self.command = ('show ip vrf')
-        interface_number_pattern = re.compile(r'(?:\w+)(\d+\S+)')
-        vrf_name_pattern = re.compile(r'(?:^\s+)(\S+)(\s+)')
-        interface_number = str(
-            interface_number_pattern.match(nbma_interface).group(1))
+        self.command = ('sh run int ' + nbma_interface + " | i vrf")
+        vrf_name_pattern = re.compile(r'(?:\s+vrf\s+forwarding\s+)(\S+)')
         output = self.run_cisco_commands()
-        for line in output[1:]:
-            if interface_number in line:
-                return vrf_name_pattern.search(line).group(1)
+        vrf_name = None
+        for line in output:
+            if vrf_name_pattern.search(line):
+                vrf_name = vrf_name_pattern.search(line).group(1)
+                bgp_logger.info('found a VRF: %s'% vrf_name)
+                return vrf_name
+        if not vrf_name:
+            bgp_logger.info('did not find a VRF')
+            return None
 
     def ping_through_vrf(self, vrf_name, nbma_end_ip):
         ''' this method will ping nbma end point ip address 
@@ -188,7 +217,7 @@ class CiscoCommands(object):
         bgp_logger.info('ping_through_to_end_ip() method')
         self.command = "ping " + nbma_end_ip
         output = self.run_cisco_commands()
-        for line in output[1:]:
+        for line in output:
             print(line)
 
 
@@ -226,24 +255,36 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
     bgp = CiscoCommands(ci_fqdn)
     bgp_as = bgp.verify_ip_protocols()
     if bgp_as:
-        source_interface = bgp.show_ip_cef(neighbor_ip)
-        print(source_interface)
+        nexthop_ip, source_interface = bgp.show_ip_cef(neighbor_ip)
+        bgp_logger.info("nexthop ip: %s , interface %s"%
+            (nexthop_ip,source_interface))
+
         if 'Tunnel' in source_interface:
-            nbma_end_ip = bgp.show_dmvpn_interface(source_interface,
-                                                     neighbor_ip)
-            print(nbma_end_ip)
-        if nbma_end_ip:
-            nbma_interface = bgp.show_ip_cef(nbma_end_ip)
-            print(nbma_interface)
-        if nbma_interface:
-            vrf_name = bgp.show_vrf_config(nbma_interface)
+            tunnel_dest_ip, source_interface = (
+                bgp.is_tunnel(source_interface))
+        else:
+            tunnel_dest_ip = None
+
+        if nexthop_ip:
+            vrf_name = bgp.show_vrf_config(source_interface)
+
+        if tunnel_dest_ip:
+            vrf_name = bgp.show_vrf_config(source_interface)
+
         if vrf_name:
-            print("Testing Connectivity to: " + nbma_end_ip + "through: " + 
-                vrf_name + "\n")
-            ping_vrf_results = bgp.ping_through_vrf(vrf_name, nbma_end_ip)
+            if nexthop_ip:
+                ping_vrf_results = bgp.ping_through_vrf(
+                                    vrf_name, nexthop_ip)
+            if tunnel_dest_ip:
+                ping_vrf_results = bgp.ping_through_vrf(
+                                    vrf_name, tunnel_dest_ip)
         if not vrf_name:
-            print("Testing Connectivity to: " + nbma_end_ip + "\n")
-            ping_results = bgp.ping_through_to_end_ip(nbma_end_ip)
+            if nexthop_ip:
+                ping_results = bgp.ping_through_to_end_ip(
+                    nexthop_ip)
+            if tunnel_dest_ip:
+                ping_results = bgp.ping_through_to_end_ip(
+                    tunnel_dest_ip)      
     else:
         raise SystemExit("This device does not run BGP")
 
@@ -251,13 +292,17 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
 if __name__ == '__main__':
     #  bgpInfo -d wp-nwk-atm-xr.gpi.remote.binc.net
     # Initializing Dictionary to Store BGP information
-    bgp_dict = lambda: defaultdict(bgp_dict)
-    bgp_info_dict = bgp_dict()
-    __slots__ = bgp_info_dict
+    try:
+        bgp_dict = lambda: defaultdict(bgp_dict)
+        bgp_info_dict = bgp_dict()
+        __slots__ = bgp_info_dict
 
-    # Initialize logging module
-    LoggerClass.logging()
+        # Initialize logging module
+        LoggerClass.logging()
 
-    ci_fqdn, neighbor_ip = argument_parser()
+        ci_fqdn, neighbor_ip = argument_parser()
 
-    bgp_orchestrator(ci_fqdn, neighbor_ip)
+        bgp_orchestrator(ci_fqdn, neighbor_ip)
+    except KeyboardInterrupt:
+        raise SystemExit("APPLICATION TERMINATED!")
+
