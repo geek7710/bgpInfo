@@ -32,13 +32,15 @@ class TestVerifyuser_input(unittest.TestCase):
         from_user = user_input.verify_etc_hosts()
         self.assertEqual(from_user, 'wp-nwk-atm-xr.gpi.remote.binc.net')
 
-    def test_device_name_log(self):
+    def test_device_name_long(self):
         print("\n")
         print("Testing ciName name FQDN 'wp-nwk-atm-xr.gpi.remote.binc.net'")
         user_input = VerifyUserInput('wp-nwk-atm-xr.gpi.remote.binc.net')
         from_user = user_input.verify_etc_hosts()
         self.assertEqual(from_user, 'wp-nwk-atm-xr.gpi.remote.binc.net')
 
+
+    def test_
 
 if __name__ == '__main__':
     unittest.main()

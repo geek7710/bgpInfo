@@ -4,9 +4,7 @@ from optparse import OptionParser
 from collections import defaultdict
 import subprocess
 import re
-import datetime
-import sys
-import os
+# import datetime
 import logging
 import pprint
 
@@ -20,57 +18,123 @@ class VerifyUserInput(object):
     def __init__(self, ci_name=None):
         self.ci_name = ci_name
         self.verified = None
-        
+        self.stdout = None
+        self.ci_list = []
+        self.ci_count = []
+
     def verify_etc_hosts(self):
-        bgp_logger.info('inside verify_etc_hosts() method')
+        bgp_logger.info('verify_etc_hosts() method')
         ''' run cat /etc/hosts and get list of devices '''
         # declaring function scope variable
-        if self.ci_name == None:
+        if self.ci_name is None:
             print("You didn't include ci_name")
             return False
         else:
-            host_pattern = re.compile(r'\s+(%s)'%self.ci_name, re.IGNORECASE)
             try:
                 proc = subprocess.Popen(
-                        ['cat','/etc/hosts'], stdout=subprocess.PIPE)
-                stdout = proc.communicate()[0]
-                stdout = stdout.split('\n')
+                        ['cat', '/etc/hosts'], stdout=subprocess.PIPE)
+                self.stdout = proc.communicate()[0]
+                self.stdout = self.stdout.split('\n')
             except Exception as err:
                 bgp_logger.info(err)
                 raise SystemExit(
                     "I am not able to find your BGP ROUTER on this BMN\n")
         # Initialize the verified variable if ci_name is not found in
         # /etc/hosts script will exit
-        for line in stdout:
+        self.stdout = self.filter_findstring_output()
+        self.stdout = self.verify_multiple_entries()
+        
+        # verified will be None if no FQDN was found
+        if self.verified is None:
+            print("I cannot find %s as a managed device"
+                  " in this BMN" % self.ci_name)
+            return False
+        else:
+            return self.stdout
+
+    def verify_multiple_entries(self):
+        '''
+        If multiple devices with similiar name are found,
+        prompt user which device is the script going to run on
+        '''
+        bgp_logger.info('verify_multiple_entries() method')
+        for line in self.stdout:
+            if self.ci_name in line:
+                self.ci_count.append(line)
+        # go to print_menu, if user selects wrong 
+        # choice re-print the menu
+        if len(self.ci_count) > 1:
+            while True:
+                self.print_menu()
+                # prompt user to select device run the script on
+                try:
+                    selection = int(raw_input("Choise# "))
+                    selection = selection - 1
+                    if selection in self.ci_list:
+                        break
+                    else:
+                        print("\n")
+                        print("You enter and INVALID option. "
+                              "Please Try again:\n")
+                except Exception as err:
+                    print("\n")
+                    print("INPUT ERROR: %s" % err)
+                    print("You enter and INVALID option. "
+                              "Please Try again:\n")
+
+            bgp_logger.info(self.ci_count[selection])
+            return self.ci_count[selection]
+        else:
+            return self.ci_count
+
+    def print_menu(self):
+        '''
+        print menu if multiple devices with similar name
+        '''
+        print("I found multiple entries with similar name,\n"
+                  "Choose which ci you want to run this script on,\n"
+                  "Select a CI by using the number on the left:\n")
+        # store the list of indexes
+        for index, ci in enumerate(self.ci_count):
+            self.ci_list.append(index)
+            print(" %d) %s\n" % (index + 1, ci))
+        return self.ci_list
+
+    def filter_findstring_output(self):
+        '''
+        filter out unneeded fields and return only log ci_name
+        "wp-hauppauge-sw.gpi.remote.hms.cdw.com"
+        '''
+        filtered = []
+        host_pattern = re.compile(r'\s+(%s)' % self.ci_name, re.IGNORECASE)
+        for line in self.stdout:
             if host_pattern.search(line):
-                verified = True
+                self.verified = True
                 if len(line.split()) == 3:
                     bgp_logger.info(line.split()[1])
                     ci_fqdn = line.split()[1]
-                    return ci_fqdn
-                else:
-                    bgp_logger.info("This looks different\n" + line)
-                    return False
-                bgp_logger.info(host_pattern.search(line).group(0).strip())
-        # verified will be None if no FQDN was found
-        if self.verified == None:
-            print("I cannot find %s as a managed device"
-                         " in this BMN"%self.ci_name)
-            return False
+                    filtered.append(ci_fqdn)
+        bgp_logger.info(filtered)
+        return filtered
 
+class run_findstring(object):
+    '''
+    Run findstring on neighbor IP to verify if it is managed by CDW
+    '''
+    pass
 
 class LoggerClass(object):
     """ This class is created to initialize logging functionality
     in this script. It is possible to create a logging filehandle
     that can store logging info in a file. This file is located
     in the same directory where the script is running by default.
-    To have the script generate script logging remove the hash in the 
+    To have the script generate script logging remove the hash in the
     commented out lines below. """
     @staticmethod
     def logging():
-        today = datetime.date.today()
-        mydate = (str(today.year) + "-" + str(today.month) + 
-                 "-" + str(today.day))
+        # today = datetime.date.today()
+        # mydate = (str(today.year) + "-" + str(today.month) +
+        #          "-" + str(today.day))
 
         # log_filename = "bgpInfoScript_" + mydate + ".log"
         global bgp_logger
@@ -93,25 +157,27 @@ class LoggerClass(object):
         # self.bgp_logger.addHandler(file_log)
         bgp_logger.addHandler(streamLog)
 
+
 class RecursiveLookup(object):
 
     def is_tunnel(self, source_interface):
         if 'Tunnel' in source_interface:
             bgp_logger.info('Found a Tunnel Interface')
             nbma_end_ip = self.show_dmvpn_interface(source_interface,
-                                                     neighbor_ip)
-            bgp_logger.info('nbma Tunnel %s'%nbma_end_ip)
+                                                    neighbor_ip)
+            bgp_logger.info('nbma Tunnel %s' % nbma_end_ip)
         else:
             bgp_logger.info('Found no Tunnel Interface')
             nbma_end_ip = None
 
         if nbma_end_ip:
             bgp_logger.info('Found a Tunnel Interface and '
-                'nbma ip address')
+                            'nbma ip address')
             tunnel_dest_ip, source_interface = self.show_ip_cef(nbma_end_ip)
-            bgp_logger.info('nexthop_ip %s , source_interface %s'%
-                (nbma_end_ip, source_interface))
+            bgp_logger.info('nexthop_ip %s , source_interface %s' %
+                            (nbma_end_ip, source_interface))
         return (nbma_end_ip, source_interface)
+
 
 class QueryLogs(object):
     ''' This class will contain all logs related methods '''
@@ -122,19 +188,18 @@ class QueryLogs(object):
     def query_lcat(self, interface_name):
         bgp_logger.info('query_lcat() Method')
         ci_name_short = self.ci_fqdn.split('.')[0]
-        ci_name_pattern = re.compile(r'\s+(%s)'%self.ci_fqdn, re.IGNORECASE)
         try:
             lcat_process = subprocess.Popen(
-                    ['lcat','silo'], stdout=subprocess.PIPE)
+                    ['lcat', 'silo'], stdout=subprocess.PIPE)
             grep1_process = subprocess.Popen(
-                    ['grep',ci_name_short], stdin=lcat_process.stdout,
+                    ['grep', ci_name_short], stdin=lcat_process.stdout,
                     stdout=subprocess.PIPE)
             grep2_process = subprocess.Popen(
-                    ['grep',interface_name], stdin=grep1_process.stdout,
+                    ['grep', interface_name], stdin=grep1_process.stdout,
                     stdout=subprocess.PIPE)
             stdout = grep2_process.communicate()[0]
             stdout = stdout.split('\n')
-            bgp_logger.info('Log Information: %s'% self.pp.pformat(stdout))
+            bgp_logger.info('Log Information: %s' % self.pp.pformat(stdout))
         except Exception as err:
             bgp_logger.info(err)
             raise SystemExit(
@@ -142,6 +207,7 @@ class QueryLogs(object):
 
     def query_cisco_device_log(self):
         pass
+
 
 class CiscoCommands(RecursiveLookup):
     ''' This class will run any bgp related commands '''
@@ -158,11 +224,11 @@ class CiscoCommands(RecursiveLookup):
         output = self.run_cisco_commands()
         for line in output:
             if bgp_as_pattern.search(line):
-                print("This device runs BGP: %s"%
+                print("This device runs BGP: %s" %
                       bgp_as_pattern.search(line).group(1))
                 return True
-            
-    def clean_clogin_output(self,clogin_output):
+
+    def clean_clogin_output(self, clogin_output):
         bgp_logger.info('clean_clogin_output() method')
         ''' remove prompt output from clogin output '''
         for index, line in enumerate(clogin_output):
@@ -174,19 +240,30 @@ class CiscoCommands(RecursiveLookup):
 
     def run_cisco_commands(self):
         bgp_logger.info('run_cisco_commands() method')
-        ''' Run clogin to retrieve command information 
+        ''' Run clogin to retrieve command information
         from device '''
         try:
-            clogin_process = subprocess.Popen(['sudo','-u','binc',
-                                          '/opt/sbin/clogin',
-                                          '-c',self.command,self.ci_name],
-                                          stdout=subprocess.PIPE)
+            clogin_process = subprocess.Popen(['sudo', '-u', 'binc',
+                                               '/opt/sbin/clogin',
+                                               '-c', self.command,
+                                              self.ci_name],
+                                              stdout=subprocess.PIPE)
             clogin_output = clogin_process.communicate()[0]
             clogin_output = clogin_output.split('\r\n')
             return self.clean_clogin_output(clogin_output)
         except Exception as err:
             raise SystemExit('clogin process failed for device: %s\n'
-                             'ERROR: %s'%(self.ci_name, err))
+                             'ERROR: %s' % (self.ci_name, err))
+
+    def show_bgp_summary(self, ip_address):
+        '''
+        pull show bgp neighbor information
+        '''
+        bgp_logger.info('show_bgp_neighbor method()')
+        self.command = "show ip bgp summary"
+        output = self.run_cisco_commands()
+        for line in output[1:]:
+            print(line)
 
     def show_ip_cef(self, ip_address):
         bgp_logger.info('show_ip_cef() method')
@@ -206,7 +283,7 @@ class CiscoCommands(RecursiveLookup):
     def show_dmvpn_interface(self, source_interface, neighbor_ip):
         ''' retrieve dmvpn information '''
         bgp_logger.info('show_dmvpn_interface() method')
-        self.command = ('show dmvpn interface ' + source_interface + 
+        self.command = ('show dmvpn interface ' + source_interface +
                         ' | i ' + neighbor_ip + " ")
 
         dmvpn_output_pattern = re.compile(r'(?:^\s+\d+\s)(\S+)(?:\s+\S+\s+)')
@@ -216,7 +293,7 @@ class CiscoCommands(RecursiveLookup):
                 return dmvpn_output_pattern.search(line).group(1)
 
     def show_vrf_config(self, nbma_interface):
-        ''' this method will verify if nbma address 
+        ''' this method will verify if nbma address
             is reachable through a vrf '''
         bgp_logger.info('show_vrf_config() method')
         self.command = ('sh run int ' + nbma_interface + " | i vrf")
@@ -226,7 +303,7 @@ class CiscoCommands(RecursiveLookup):
         for line in output:
             if vrf_name_pattern.search(line):
                 vrf_name = vrf_name_pattern.search(line).group(1)
-                bgp_logger.info('found a VRF: %s'% vrf_name)
+                bgp_logger.info('found a VRF: %s' % vrf_name)
                 return vrf_name
         if not vrf_name:
             bgp_logger.info('did not find a VRF')
@@ -249,7 +326,7 @@ class CiscoCommands(RecursiveLookup):
             return None
 
     def ping_through_vrf(self, vrf_name, nbma_end_ip):
-        ''' this method will ping nbma end point ip address 
+        ''' this method will ping nbma end point ip address
             through vrf to test carrier connectivity '''
         bgp_logger.info('ping_through_vrf() method')
         self.command = "ping vrf " + vrf_name + " " + nbma_end_ip
@@ -270,19 +347,22 @@ class CiscoCommands(RecursiveLookup):
 def argument_parser():
     ''' Run argument parser to verify what user wants to do '''
     parser = OptionParser(usage="\nOPTION: %prog -d <ci_name> "
-                                "-n <ipAddress>\n\n"
-    "EXAMPLE: bgpInfo -d wp-nwk-atm-xr.gpi.remote.binc.net -n 8.9.10.11\n\n"
-    "ALSO TO PRINT HELP: %prog --help to print this information",
-    version="%prog 1.0")
+                          "-n <ipAddress>\n\n"
+                          "EXAMPLE: bgp -d "
+                          "wp-nwk-atm-xr.gpi.remote.binc.net"
+                          " -n 8.9.10.11\n\n"
+                          "ALSO TO PRINT HELP: %prog "
+                          "--help to print this information",
+                          version="%prog 1.0")
     parser.add_option("-d", "--device",
-                    # optional because action defaults to "store"
-                    action="store", 
-                    dest="ci_name",
-                    help="ci_name is a REQUIREMENT to run this script",)
+                      # optional because action defaults to "store"
+                      action="store",
+                      dest="ci_name",
+                      help="ci_name is a REQUIREMENT to run this script",)
     parser.add_option("-n", "--neighbor",
-                    action="store",
-                    dest="neighbor_ip",
-                    help="BGP Neighbor IP address is a REQUIREMENT",)
+                      action="store",
+                      dest="neighbor_ip",
+                      help="BGP Neighbor IP address is a REQUIREMENT",)
     (options, args) = parser.parse_args()
     if options.ci_name and options.neighbor_ip:
         user_input = VerifyUserInput(options.ci_name)
@@ -300,13 +380,17 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
     bgp_logger.info('bgp_orchestrator() method')
     bgp = CiscoCommands(ci_fqdn)
     bgp_as = bgp.verify_ip_protocols()
-
+    vrf_name = None
     query_logging = QueryLogs(ci_fqdn)
 
     if bgp_as:
+        # display show ip bgp summary
+        bgp.show_bgp_summary(neighbor_ip)
+
+        # display show ip cef <IP> 
         nexthop_ip, source_interface = bgp.show_ip_cef(neighbor_ip)
-        bgp_logger.info("nexthop ip: %s , interface %s"%
-            (nexthop_ip,source_interface))
+        bgp_logger.info("nexthop ip: %s , interface %s" %
+                        (nexthop_ip, source_interface))
 
         # if cef points to a Tunnel then recursive lookup
         # to find nmba tunnel destination IP
@@ -314,7 +398,9 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
             tunnel_dest_ip, source_interface = (
                 bgp.is_tunnel(source_interface))
         else:
-            tunnel_dest_ip = None
+            if not nexthop_ip:
+                nexthop_ip = neighbor_ip
+            tunnel_dest_ip = False
 
         # look if there's a VRF associated with interface
         if nexthop_ip:
@@ -330,37 +416,37 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
 
         # if vrf associated with interface, use it to ping
         # gateway, other endpoint or end of tunnel nbma
-        if vrf_name:
+        if vrf_name is not None:
             if nexthop_ip:
                 ping_vrf_results = bgp.ping_through_vrf(
                                     vrf_name, nexthop_ip)
             if tunnel_dest_ip:
                 ping_vrf_results = bgp.ping_through_vrf(
                                     vrf_name, tunnel_dest_ip)
-        
+
         # Retreive Interface Description
         if nexthop_ip:
             description = bgp.show_intf_desciption(source_interface)
             if description:
-                bgp_logger.info('Interface description: %s'% description)
+                bgp_logger.info('Interface description: %s' % description)
             else:
                 bgp_logger.info('No interface description found!')
         if tunnel_dest_ip:
             description = bgp.show_intf_desciption(source_interface)
             if description:
-                bgp_logger.info('Interface description: %s'% description)
+                bgp_logger.info('Interface description: %s' % description)
             else:
-                bgp_logger.info('No interface description found!'
+                bgp_logger.info('No interface description found!')
 
-        if not vrf_name:
+        if vrf_name is None:
             if nexthop_ip:
                 ping_results = bgp.ping_through_to_end_ip(
                     nexthop_ip)
             if tunnel_dest_ip:
                 ping_results = bgp.ping_through_to_end_ip(
-                    tunnel_dest_ip)    
+                    tunnel_dest_ip)
     else:
-        raise SystemExit("This device does not run BGP")
+        raise SystemExit("This device %s does not run BGP" % ci_fqdn)
 
 
 if __name__ == '__main__':
@@ -379,4 +465,3 @@ if __name__ == '__main__':
         bgp_orchestrator(ci_fqdn, neighbor_ip)
     except KeyboardInterrupt:
         raise SystemExit("APPLICATION TERMINATED!")
-

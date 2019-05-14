@@ -1,4 +1,5 @@
-RECURRING: BGP adjacency down for neighbor 172.16.1.2  Log message: <189>May  8 07:11:11 wp-hauppauge.gpi.remote.binc.net 26735: May  8 08:11:10.598 EDT: %BGP
+RECURRING: BGP adjacency down for neighbor 172.16.1.2  Log message: 
+<189>May  8 07:11:11 wp-hauppauge.gpi.remote.binc.net 26735: May  8 08:11:10.598 EDT: %BGP
 
 
 BGP adjacency is down for neighbor 172.16.0.2 
@@ -8,6 +9,10 @@ BGP adjacency is down for neighbor 172.16.0.2
 
 r-brigg-4331-hde01-1.brigg.remote.binc.net
 sudo -u  binc /opt/sbin/clogin -c 'sh ip bgp summ' r-brigg-4331-hde01-1.brigg.remote.binc.net
+
+10.251.1.1
+10.251.2.1
+
 
 
 =======================
@@ -93,7 +98,16 @@ WP-Hauppauge#show bgp neigh 172.16.1.2 | i host
 Local host: 172.16.1.133, Local port: 21061
 Foreign host: 172.16.1.2, Foreign port: 179
 
+=======================
 
-
+[gpi-s-bmn03 migboni 12:49:24]~/pythonScript $ ./bgp.py -d sb-6807.gpi.remote.binc.net -n 1.1.1.1
+2019-05-14 12:51:14,759 - INFO - inside verify_etc_hosts() method
+2019-05-14 12:51:14,768 - INFO - sb-6807.gpi.remote.binc.net
+2019-05-14 12:51:14,769 - INFO - bgp_orchestrator() method
+2019-05-14 12:51:14,769 - INFO - verify_ip_protocols() method
+2019-05-14 12:51:14,769 - INFO - run_cisco_commands() method
+Enter PASSCODE:
+2019-05-14 12:51:29,153 - INFO - clean_clogin_output() method
+This device sb-6807.gpi.remote.binc.net does not run BGP
 
 
