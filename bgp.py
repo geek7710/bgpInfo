@@ -43,14 +43,16 @@ class VerifyUserInput(object):
         # /etc/hosts script will exit
         self.stdout = self.filter_findstring_output()
         self.stdout = self.verify_multiple_entries()
-        
+
         # verified will be None if no FQDN was found
         if self.verified is None:
             print("I cannot find %s as a managed device"
                   " in this BMN" % self.ci_name)
             return False
         else:
-            return self.stdout
+            # because self.stdout was turned into a list, it now needs to
+            # return the single item stripped out of list
+            return self.stdout[0]
 
     def verify_multiple_entries(self):
         '''
@@ -61,7 +63,7 @@ class VerifyUserInput(object):
         for line in self.stdout:
             if self.ci_name in line:
                 self.ci_count.append(line)
-        # go to print_menu, if user selects wrong 
+        # go to print_menu, if user selects wrong
         # choice re-print the menu
         if len(self.ci_count) > 1:
             while True:
@@ -80,7 +82,7 @@ class VerifyUserInput(object):
                     print("\n")
                     print("INPUT ERROR: %s" % err)
                     print("You enter and INVALID option. "
-                              "Please Try again:\n")
+                          "Please Try again:\n")
 
             bgp_logger.info(self.ci_count[selection])
             return self.ci_count[selection]
@@ -92,8 +94,8 @@ class VerifyUserInput(object):
         print menu if multiple devices with similar name
         '''
         print("I found multiple entries with similar name,\n"
-                  "Choose which ci you want to run this script on,\n"
-                  "Select a CI by using the number on the left:\n")
+              "Choose which ci you want to run this script on,\n"
+              "Select a CI by using the number on the left:\n")
         # store the list of indexes
         for index, ci in enumerate(self.ci_count):
             self.ci_list.append(index)
@@ -117,11 +119,51 @@ class VerifyUserInput(object):
         bgp_logger.info(filtered)
         return filtered
 
-class run_findstring(object):
+
+class RunFindstring(object):
     '''
     Run findstring on neighbor IP to verify if it is managed by CDW
     '''
-    pass
+    def __init__(self, neighbor_ip = None):
+        self.neighbor_ip = neighbor_ip
+        bgp_logger.info('run_findstring() class')
+
+    def find_managed(self):
+        '''
+        run findstring to verify if neighbor ip address
+        is managed by CDW
+        '''
+        bgp_logger.info('find_managed() method')
+        if self.neighbor_ip is None:
+            print("Neighbor IP is not valid")
+            return False
+        else:
+            self.neighbor_ip = "ip address " + self.neighbor_ip + " "
+            try:
+                proc = subprocess.Popen(
+                                        ['findstring','-d',
+                                        self.neighbor_ip],
+                                        stdout=subprocess.PIPE)
+                grep = subprocess.Popen(['grep',
+                                         'Device:'],
+                                        stdin=proc.stdout,
+                                        stdout=subprocess.PIPE)
+                awk = subprocess.Popen(['awk',
+                                        '{print $2}'],
+                                        stdin=grep.stdout,
+                                        stdout=subprocess.PIPE)
+                stdout = awk.communicate()[0]
+            except Exception as err:
+                bgp_logger.info(err)
+                raise SystemExit(
+                    "I am not able to run findstring on this BMN\n")
+        # Initialize the verified variable if ci_name is not found in
+        # /etc/hosts script will exit
+        if stdout:
+            return stdout
+        else:
+            return False
+
 
 class LoggerClass(object):
     """ This class is created to initialize logging functionality
@@ -378,10 +420,20 @@ def argument_parser():
 
 def bgp_orchestrator(ci_fqdn, neighbor_ip):
     bgp_logger.info('bgp_orchestrator() method')
+
+    # Initialize class that will run clogin on cisco Devices
     bgp = CiscoCommands(ci_fqdn)
+
+    # find is neighbor IP is managed by CDW
+    findstring = RunFindstring(neighbor_ip)
+    cdw_managed = findstring.find_managed()
+    bgp_logger.info('Neighbor IP ID: %s' % cdw_managed)
+
+    # Verify if device is configured with BGP
     bgp_as = bgp.verify_ip_protocols()
     vrf_name = None
     query_logging = QueryLogs(ci_fqdn)
+
 
     if bgp_as:
         # display show ip bgp summary
@@ -400,19 +452,12 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
         else:
             if not nexthop_ip:
                 nexthop_ip = neighbor_ip
-            tunnel_dest_ip = False
-
-        # look if there's a VRF associated with interface
-        if nexthop_ip:
-            vrf_name = bgp.show_vrf_config(source_interface)
-        if tunnel_dest_ip:
-            vrf_name = bgp.show_vrf_config(source_interface)
+            tunnel_dest_ip = False 
 
         # query the silo logs for interface flap
-        if nexthop_ip:
+        if nexthop_ip or tunnel_dest_ip:
             query_logging.query_lcat(source_interface)
-        if tunnel_dest_ip:
-            query_logging.query_lcat(source_interface)
+            vrf_name = bgp.show_vrf_config(source_interface)
 
         # if vrf associated with interface, use it to ping
         # gateway, other endpoint or end of tunnel nbma
@@ -427,17 +472,11 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
         # Retreive Interface Description
         if nexthop_ip:
             description = bgp.show_intf_desciption(source_interface)
-            if description:
-                bgp_logger.info('Interface description: %s' % description)
-            else:
-                bgp_logger.info('No interface description found!')
         if tunnel_dest_ip:
             description = bgp.show_intf_desciption(source_interface)
-            if description:
-                bgp_logger.info('Interface description: %s' % description)
-            else:
-                bgp_logger.info('No interface description found!')
+        bgp_logger.info('Interface description: %s' % description)
 
+        # If no VRF is associated with interface then
         if vrf_name is None:
             if nexthop_ip:
                 ping_results = bgp.ping_through_to_end_ip(
