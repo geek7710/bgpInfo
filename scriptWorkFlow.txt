@@ -14,6 +14,16 @@ sudo -u  binc /opt/sbin/clogin -c 'sh ip bgp summ' r-brigg-4331-hde01-1.brigg.re
 10.251.2.1
 
 
+10.46.160.133   rbd-santamaria-dmvpn-rtr1.reyes.remote.hms.cdw.com      rbd-santamaria-dmvpn-rtr1
+10.255.251.170  rbd-santamaria-rtr1.reyes.remote.hms.cdw.com    rbd-santamaria-rtr1
+10.50.80.1      mbus-phoenix-core-sw1.reyes.remote.hms.cdw.com  mbus-phoenix-core-sw1
+10.50.80.10     mbus-phoenix-sw1.reyes.remote.hms.cdw.com       mbus-phoenix-sw1
+10.50.80.11     mbus-phoenix-sw2.reyes.remote.hms.cdw.com       mbus-phoenix-sw2
+10.50.80.12     mbus-phoenix-sw3.reyes.remote.hms.cdw.com       mbus-phoenix-sw3
+10.50.80.13     mbus-phoenix-sw4.reyes.remote.hms.cdw.com       mbus-phoenix-sw4
+10.50.128.1     mbus-cid-core-sw1.reyes.remote.hms.cdw.com      mbus-cid-core-sw1
+
+
 
 =======================
 
@@ -109,5 +119,10 @@ Foreign host: 172.16.1.2, Foreign port: 179
 Enter PASSCODE:
 2019-05-14 12:51:29,153 - INFO - clean_clogin_output() method
 This device sb-6807.gpi.remote.binc.net does not run BGP
+
+
+
+ ['BGP router identifier 10.202.255.133, local AS number 133', 'BGP table version is 657253, main routing table version 657253', '977 network entries using 140688 bytes of memory', '4822 path entries using 385760 bytes of memory', '373/185 BGP path/bestpath attribute entries using 59680 bytes of memory', '366 BGP AS-PATH entries using 9336 bytes of memory', '0 BGP route-map cache entries using 0 bytes of memory', '0 BGP filter-list cache entries using 0 bytes of memory', 'BGP using 595464 total bytes of memory', '1931 received paths for inbound soft reconfiguration', 'BGP activity 10217/9240 prefixes, 1288760/1283938 paths, scan interval 60 secs', '', 'Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd', '100.65.0.77     4         3549  138940   94389   657253    0    0 4w2d          974', '172.16.0.2      4            2    6145    5909   657253    0    0 22:57:41      957', '172.16.1.2      4            2     615     401   657253    0    0 01:32:28      957']
+2019-05-15 15:04:49,815 - INFO - bgp_neighbor() method
 
 

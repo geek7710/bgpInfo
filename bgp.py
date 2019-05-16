@@ -225,31 +225,73 @@ class QueryLogs(object):
     ''' This class will contain all logs related methods '''
     def __init__(self, ci_fqdn):
         self.ci_fqdn = ci_fqdn
-        self.pp = pprint.PrettyPrinter(indent=2)
 
-    def query_lcat(self, interface_name):
-        bgp_logger.info('query_lcat() Method')
+    def query_lcat_intf_flap(self, interface_name):
+        bgp_logger.info('query_lcat_intf_flap() Method')
         ci_name_short = self.ci_fqdn.split('.')[0]
+        bgp_logger.info('CI SHORT NAME: %s' % ci_name_short)
         try:
             lcat_process = subprocess.Popen(
                     ['lcat', 'silo'], stdout=subprocess.PIPE)
-            grep1_process = subprocess.Popen(
+            grep1_ci = subprocess.Popen(
                     ['grep', ci_name_short], stdin=lcat_process.stdout,
                     stdout=subprocess.PIPE)
-            grep2_process = subprocess.Popen(
-                    ['grep', interface_name], stdin=grep1_process.stdout,
+            grep2_interface = subprocess.Popen(
+                    ['grep', interface_name], stdin=grep1_ci.stdout,
                     stdout=subprocess.PIPE)
-            stdout = grep2_process.communicate()[0]
+            stdout = grep2_interface.communicate()[0]
             stdout = stdout.split('\n')
-            bgp_logger.info('Log Information: %s' % self.pp.pformat(stdout))
+            # return false if no %LINEPROTO-5-UPDOWN entry is found 
+            # in log line
+            for line in stdout:
+                if 'UPDOWN' in line:
+                    if len(stdout) > 10:
+                        return stdout[-10:]
+                    else:
+                        return stdout
+            else:
+                return False
         except Exception as err:
             bgp_logger.info(err)
-            raise SystemExit(
-                "I am not able to query silo logs\n")
+            print("Subprocess failed to retreive BGP\n"
+                  " log information for bouncing interfaces\n")
+            return False
 
-    def query_cisco_device_log(self):
-        pass
-
+    def query_lcat_bgp(self, neighbor_ip):
+        '''
+        Look for BGP flaps
+        '''
+        bgp_logger.info('query_lcat_bgp() Method')
+        ci_name_short = self.ci_fqdn.split('.')[0]
+        bgp_logger.info('CI SHORT NAME: %s' % ci_name_short)
+        try:
+            lcat_process = subprocess.Popen(
+                    ['lcat', 'silo'], stdout=subprocess.PIPE)
+            grep1_ci = subprocess.Popen(
+                    ['grep', ci_name_short], stdin=lcat_process.stdout,
+                    stdout=subprocess.PIPE)
+            grep2_bgp = subprocess.Popen(
+                    ['grep', 'BGP'], stdin=grep1_ci.stdout,
+                    stdout=subprocess.PIPE)
+            grep3_neighbor = subprocess.Popen(
+                    ['grep', neighbor_ip], stdin=grep2_bgp.stdout,
+                    stdout=subprocess.PIPE)
+            stdout = grep3_neighbor.communicate()[0]
+            stdout = stdout.split('\n')
+            for line in stdout:
+                if "BGP" in line:
+                    if len(stdout) > 10:
+                        return stdout[-10:]
+                    else:
+                        return stdout
+            else:
+                return False
+        except Exception as err:
+            bgp_logger.info(err)
+            print("Subprocess failed to retrieve BGP\n"
+                  " log information for Neighbor: %s" % neighbor_ip)
+            return False
+        
 
 class CiscoCommands(RecursiveLookup):
     ''' This class will run any bgp related commands '''
@@ -304,8 +346,10 @@ class CiscoCommands(RecursiveLookup):
         bgp_logger.info('show_bgp_neighbor method()')
         self.command = "show ip bgp summary"
         output = self.run_cisco_commands()
-        for line in output[1:]:
-            print(line)
+        bgp_logger.info('BGP SUMMARY: \n %s' % output[1:])
+
+        # return a slice of the output, omitting the command entered
+        return output[1:]
 
     def show_ip_cef(self, ip_address):
         bgp_logger.info('show_ip_cef() method')
@@ -386,6 +430,39 @@ class CiscoCommands(RecursiveLookup):
             print(line)
 
 
+class Recommendations(object):
+    '''
+    This class will orchestrate recommendations according
+    to a few outputs, bgp neighbor summary and ping results
+    '''
+    def bgp_neighbor(self, bgp_summary, neighbor_ip):
+        bgp_logger.info("bgp_neighbor() method")
+        for line in bgp_summary:
+            if neighbor_ip in line:
+                self._bgp_uptime(line)
+
+    def _bgp_uptime(self, bgp_neighbor_uptime):
+        '''
+        determine if BGP has flapped in the last 24hrs
+        regex: Group(1) = Hrs - Group(2) = Min - Group(3) = Sec
+        '''
+        uptime_hours = re.compile(r'(\d{2})(?:\:)(\d{2})(?:\:)(\d{2})')
+        uptime_days = re.compile(r'(?:\s+)(\d+\w\d+\w)(?:\s+\d+)$')
+        match_hours = uptime_hours.search(bgp_neighbor_uptime)
+        match_days = uptime_days.search(bgp_neighbor_uptime)
+
+        if match_days:
+            bgp_logger.info("BGP neighbor has been stablised"
+                            " for over 24hrs\n%s" % bgp_neighbor_uptime)
+        if match_hours:
+            hours = int(match_hours.group(1))
+            minutes = int(match_hours.group(2))
+            seconds = int(match_hours.group(3))
+            uptime = match_hours.group(0)
+            bgp_logger.info("BGP Neighbor Flapped Recently"
+                            " in less than 24hrs\n%s" % bgp_neighbor_uptime)
+
+
 def argument_parser():
     ''' Run argument parser to verify what user wants to do '''
     parser = OptionParser(usage="\nOPTION: %prog -d <ci_name> "
@@ -431,18 +508,37 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
 
     # Verify if device is configured with BGP
     bgp_as = bgp.verify_ip_protocols()
-    vrf_name = None
+
+    #Initialize logging class
     query_logging = QueryLogs(ci_fqdn)
 
-
+    # initialize vrf_name to None
+    vrf_name = None
     if bgp_as:
         # display show ip bgp summary
-        bgp.show_bgp_summary(neighbor_ip)
-
+        bgp_summary = bgp.show_bgp_summary(neighbor_ip)
+        verify = Recommendations()
+        result_bgp_neighbor = verify.bgp_neighbor(bgp_summary, neighbor_ip)
+            
         # display show ip cef <IP> 
         nexthop_ip, source_interface = bgp.show_ip_cef(neighbor_ip)
         bgp_logger.info("nexthop ip: %s , interface %s" %
                         (nexthop_ip, source_interface))
+
+        # Query logs, look for interface flaps or BGP State Change entries
+        intf_flaps = query_logging.query_lcat_intf_flap(source_interface)
+        if intf_flaps:
+            for line in intf_flaps:
+                print(line)
+        else:
+            print("NO INTERFACE FLAPS FOUND")
+        # Query logs for BGP and neighbor IP state changes
+        bgp_logs = query_logging.query_lcat_bgp(neighbor_ip)
+        if bgp_logs:
+            for line in bgp_logs:
+                print(line)
+        else:
+            print("NO BGP ENTIES FOUND IN THE LOG")
 
         # if cef points to a Tunnel then recursive lookup
         # to find nmba tunnel destination IP
@@ -456,7 +552,6 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
 
         # query the silo logs for interface flap
         if nexthop_ip or tunnel_dest_ip:
-            query_logging.query_lcat(source_interface)
             vrf_name = bgp.show_vrf_config(source_interface)
 
         # if vrf associated with interface, use it to ping
