@@ -207,14 +207,12 @@ class RecursiveLookup(object):
             bgp_logger.info('Found a Tunnel Interface')
             nbma_end_ip = self.show_dmvpn_interface(source_interface,
                                                     neighbor_ip)
-            bgp_logger.info('nbma Tunnel %s' % nbma_end_ip)
+            bgp_logger.info('NBMA IP: %s' % nbma_end_ip)
         else:
             bgp_logger.info('Found no Tunnel Interface')
             nbma_end_ip = None
 
         if nbma_end_ip:
-            bgp_logger.info('Found a Tunnel Interface and '
-                            'nbma ip address')
             tunnel_dest_ip, source_interface = self.show_ip_cef(nbma_end_ip)
             bgp_logger.info('nexthop_ip %s , source_interface %s' %
                             (nbma_end_ip, source_interface))
@@ -291,7 +289,42 @@ class QueryLogs(object):
             print("Subprocess failed to retrieve BGP\n"
                   " log information for Neighbor: %s" % neighbor_ip)
             return False
-        
+
+
+class AnalyzePingResults(object):
+    '''
+    determine if ping fails, packet drops.  
+    '''
+    def __init__(self, ping_results = False):
+        self.ping_results = ping_results
+
+    def anylize_pings(self):
+        # below regex pattern
+        # (?:Success\s+rate\s+is\s)(\d+)(?:\s+percent\s+)(\((\d+)\/(\d)\))
+        bgp_logger.info('anylize_pings() method')
+        srate_pat = re.compile('''(?:Success\s+rate\s+is\s)
+                  (\d+)(?:\s+percent\s+)(\((\d+)\/(\d)\))''', re.VERBOSE)
+
+        if self.ping_results:
+            for line in self.ping_results:
+                print(line)
+                if srate_pat.match(line):
+                    success_rate = int(srate_pat.match(line).group(1))
+                    pings_sent = srate_pat.match(line).group(4)
+                    success_pings = srate_pat.match(line).group(3)
+            if success_rate == 0:
+                print("Open a Carrier ticket."
+                      "Circuit is not forwarding Traffic")
+            if success_rate < 100:
+                print("I see some packet loss")
+            if success_rate == 100:
+                print("Circuit looks OK")
+        else:
+            print("Ping Results Were Not Received")
+
+    def _packet_loss_retest(self):
+        pass
+
 
 class CiscoCommands(RecursiveLookup):
     ''' This class will run any bgp related commands '''
@@ -315,6 +348,9 @@ class CiscoCommands(RecursiveLookup):
     def clean_clogin_output(self, clogin_output):
         bgp_logger.info('clean_clogin_output() method')
         ''' remove prompt output from clogin output '''
+        # default values
+        start = 0
+        end = ''
         for index, line in enumerate(clogin_output):
             if self.command in line:
                 start = index
@@ -335,6 +371,7 @@ class CiscoCommands(RecursiveLookup):
             clogin_output = clogin_process.communicate()[0]
             clogin_output = clogin_output.split('\r\n')
             return self.clean_clogin_output(clogin_output)
+            #return clogin_output
         except Exception as err:
             raise SystemExit('clogin process failed for device: %s\n'
                              'ERROR: %s' % (self.ci_name, err))
@@ -355,16 +392,32 @@ class CiscoCommands(RecursiveLookup):
         bgp_logger.info('show_ip_cef() method')
         self.command = 'show ip cef ' + ip_address
         output = self.run_cisco_commands()
-        cef_interface_pattern = re.compile(r'(?:\s+)(\S+)(?:\s+)(\S+)$')
+        cef_interface_pattern = re.compile(r'(?:\s+)(\S+)(?:\s+)([TGESC]\S+)$')
         ip_pattern = re.compile(r'(\d+\.\d+\.\d+.\d+)')
+        tunnel_list = []
+        nexthop_list = []
+        return_nexthop = []
         for line in output[1:]:
             if cef_interface_pattern.search(line):
                 nexthop_ip = cef_interface_pattern.search(line).group(1)
-                outbound_if = cef_interface_pattern.search(line).group(2)
-                if ip_pattern.search(nexthop_ip):
-                    return nexthop_ip, outbound_if
+                nexthop_list.append(nexthop_ip)
+                outbound_intf = cef_interface_pattern.search(line).group(2)
+                tunnel_list.append(outbound_intf)
+
+        if len(tunnel_list) == 1:
+            bgp_logger.info('FOUND A SINGLE TUNNEL')
+            if ip_pattern.search(nexthop_ip):
+                return nexthop_ip, outbound_intf
+            else:
+                return None, outbound_intf
+        if len(tunnel_list) == 2:
+            bgp_logger.info('FOUND MULTIPLE TUNNELS')
+            for nexthop in nexthop_list:
+                if ip_pattern.search(nexthop):
+                    return_nexthop.append(nexthop)
                 else:
-                    return None, outbound_if
+                    return_nexthop.append(None)
+            return return_nexthop, tunnel_list
 
     def show_dmvpn_interface(self, source_interface, neighbor_ip):
         ''' retrieve dmvpn information '''
@@ -378,47 +431,44 @@ class CiscoCommands(RecursiveLookup):
             if dmvpn_output_pattern.search(line):
                 return dmvpn_output_pattern.search(line).group(1)
 
-    def show_vrf_config(self, nbma_interface):
+    def show_vrf_config(self, vrf_name):
         ''' this method will verify if nbma address
             is reachable through a vrf '''
         bgp_logger.info('show_vrf_config() method')
-        self.command = ('sh run int ' + nbma_interface + " | i vrf")
-        vrf_name_pattern = re.compile(r'(?:\s+vrf\s+forwarding\s+)(\S+)')
+        self.command = ('sh ip vrf | i ' + vrf_name)
+        intf_id_pat = re.compile(r'(?:%s\s+\d+\:\d+\s+)(\S+)' % vrf_name)
         output = self.run_cisco_commands()
-        vrf_name = None
+        intf_outbound = False
         for line in output:
-            if vrf_name_pattern.search(line):
-                vrf_name = vrf_name_pattern.search(line).group(1)
-                bgp_logger.info('found a VRF: %s' % vrf_name)
-                return vrf_name
-        if not vrf_name:
-            bgp_logger.info('did not find a VRF')
-            return None
+            if intf_id_pat.search(line):
+                intf_outbound = intf_id_pat.search(line).group(1)
+                return intf_outbound
+        if not intf_outbound:
+            return False
 
-    def show_intf_desciption(self, nbma_interface):
+    def show_intf_desciption(self, interface_id):
         ''' This method will extract interface description
             if there's a circuit ID it can be used to open
             a carrier ticket '''
         bgp_logger.info('show_interface_desciption() method')
-        self.command = 'show run int ' + nbma_interface + ' | i description'
+        self.command = 'show run int ' + interface_id + ' | i description'
         output = self.run_cisco_commands()
-        description = None
+        description = False
         int_desc_pattern = re.compile(r'(?:description\s+)(.+)')
         for line in output[1:]:
             if int_desc_pattern.search(line):
                 description = int_desc_pattern.search(line).group(1)
                 return description
         if not description:
-            return None
+            return False
 
-    def ping_through_vrf(self, vrf_name, nbma_end_ip):
+    def ping_through_vrf(self, vrf_name, telco_end_ip):
         ''' this method will ping nbma end point ip address
             through vrf to test carrier connectivity '''
         bgp_logger.info('ping_through_vrf() method')
-        self.command = "ping vrf " + vrf_name + " " + nbma_end_ip
+        self.command = "ping vrf " + vrf_name + " " + telco_end_ip
         output = self.run_cisco_commands()
-        for line in output[1:]:
-            print(line)
+        return output
 
     def ping_through_to_end_ip(self, nbma_end_ip):
         ''' this method will ping nbma end point ip address to test
@@ -426,9 +476,42 @@ class CiscoCommands(RecursiveLookup):
         bgp_logger.info('ping_through_to_end_ip() method')
         self.command = "ping " + nbma_end_ip
         output = self.run_cisco_commands()
-        for line in output:
-            print(line)
+        return output
 
+    def vrf_in_tunnel(self, tunnel_id):
+        '''
+        Verify if tunnel is configured under a vrf
+        '''
+        bgp_logger.info('show_config_tunnel() method')
+        vrf_pat = re.compile(r'(?:tunnel\s+vrf\s+)(\S+)')
+        self.command = "show run int " + tunnel_id + " | inc vrf"
+        output = self.run_cisco_commands()
+        vrf_name = False
+        for line in output:
+            if vrf_pat.search(line):
+                vrf_name = vrf_pat.search(line).group(1)
+        if vrf_name:
+            return vrf_name
+        else:
+            return False
+
+    def vrf_in_interface(self, interface_id):
+        '''
+        Verify if there's a vrf configured under interface
+        to make sure pings to destination IP are successful
+        '''
+        bgp_logger.info('vrf_in_interface() method')
+        vrf_pat = re.compile(r'(?:ip\s+vrf\s+forwarding\s+)(\S+)')
+        self.command = "show run int " + interface_id + " | inc vrf"
+        output = self.run_cisco_commands()
+        vrf_name = False
+        for line in output:
+            if vrf_pat.search(line):
+                vrf_name = vrf_pat.search(line).group(1)
+        if vrf_name:
+            return vrf_name
+        else:
+            return False
 
 class Recommendations(object):
     '''
@@ -446,6 +529,7 @@ class Recommendations(object):
         determine if BGP has flapped in the last 24hrs
         regex: Group(1) = Hrs - Group(2) = Min - Group(3) = Sec
         '''
+        bgp_logger.info("_bgp_uptime() method")
         uptime_hours = re.compile(r'(\d{2})(?:\:)(\d{2})(?:\:)(\d{2})')
         uptime_days = re.compile(r'(?:\s+)(\d+\w\d+\w)(?:\s+\d+)$')
         match_hours = uptime_hours.search(bgp_neighbor_uptime)
@@ -461,6 +545,27 @@ class Recommendations(object):
             uptime = match_hours.group(0)
             bgp_logger.info("BGP Neighbor Flapped Recently"
                             " in less than 24hrs\n%s" % bgp_neighbor_uptime)
+
+    def _verify_tunnel_config(self, config_tunnel):
+        '''
+        if tunnel if not configured properly, alert of a false positive alarm
+        '''
+        bgp_logger.info("_verify_tunnel_config() method")
+        checked = [False, False, False]
+        for line in config_tunnel:
+            print(line)
+            if 'ip nhrp network-id' in line:
+                checked[0] = True
+            if 'tunnel source' in line:
+                checked[1] = True
+            if 'tunnel mode' in line:
+                checked[2] = True
+        if any(checked) == False:
+            SystemExit("Tunnel Configuration is Incomplete"
+                             "Forward ticket to ECC to confirm")
+        if any(checked) == True:
+            bgp_logger.info("TUNNEL CONFIGURAITON CHECK: PASS")
+            return True
 
 
 def argument_parser():
@@ -509,9 +614,6 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
     # Verify if device is configured with BGP
     bgp_as = bgp.verify_ip_protocols()
 
-    #Initialize logging class
-    query_logging = QueryLogs(ci_fqdn)
-
     # initialize vrf_name to None
     vrf_name = None
     if bgp_as:
@@ -519,12 +621,39 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
         bgp_summary = bgp.show_bgp_summary(neighbor_ip)
         verify = Recommendations()
         result_bgp_neighbor = verify.bgp_neighbor(bgp_summary, neighbor_ip)
-            
+        
+        #Initialize logging class
+        query_logging = QueryLogs(ci_fqdn)
+
         # display show ip cef <IP> 
         nexthop_ip, source_interface = bgp.show_ip_cef(neighbor_ip)
-        bgp_logger.info("nexthop ip: %s , interface %s" %
+        bgp_logger.info("NEXHOP IP: %s , INTERFACE: %s" %
                         (nexthop_ip, source_interface))
+        
 
+        # Verify Tunnel configuration, if this is an incomplete
+        # implementation stop the script and notify user
+        if 'Tunnel' in source_interface:
+            vrf_name = bgp.vrf_in_tunnel(source_interface)
+            bgp_logger.info("VRF NAME: %s" % vrf_name)
+
+            tunnel_source_intf = bgp.show_vrf_config(vrf_name)
+            bgp_logger.info("TUNNEL SOURCE: %s" % tunnel_source_intf)
+
+            intf_description = bgp.show_intf_desciption(tunnel_source_intf)
+            bgp_logger.info("INTF DESCRIPTION: %s" % intf_description)
+            
+            nexthop_telco = bgp.show_dmvpn_interface(source_interface,
+                            neighbor_ip)
+            bgp_logger.info("TELCO: %s" % nexthop_telco)
+
+            ping_results = bgp.ping_through_vrf(vrf_name, nexthop_telco)
+            bgp_logger.info("PING RESULTS: %s" % ping_results)
+
+            verify = Recommendations()
+            verify.bgp_neighbor(bgp_summary, neighbor_ip)
+
+        '''
         # Query logs, look for interface flaps or BGP State Change entries
         intf_flaps = query_logging.query_lcat_intf_flap(source_interface)
         if intf_flaps:
@@ -539,46 +668,7 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                 print(line)
         else:
             print("NO BGP ENTIES FOUND IN THE LOG")
-
-        # if cef points to a Tunnel then recursive lookup
-        # to find nmba tunnel destination IP
-        if 'Tunnel' in source_interface:
-            tunnel_dest_ip, source_interface = (
-                bgp.is_tunnel(source_interface))
-        else:
-            if not nexthop_ip:
-                nexthop_ip = neighbor_ip
-            tunnel_dest_ip = False 
-
-        # query the silo logs for interface flap
-        if nexthop_ip or tunnel_dest_ip:
-            vrf_name = bgp.show_vrf_config(source_interface)
-
-        # if vrf associated with interface, use it to ping
-        # gateway, other endpoint or end of tunnel nbma
-        if vrf_name is not None:
-            if nexthop_ip:
-                ping_vrf_results = bgp.ping_through_vrf(
-                                    vrf_name, nexthop_ip)
-            if tunnel_dest_ip:
-                ping_vrf_results = bgp.ping_through_vrf(
-                                    vrf_name, tunnel_dest_ip)
-
-        # Retreive Interface Description
-        if nexthop_ip:
-            description = bgp.show_intf_desciption(source_interface)
-        if tunnel_dest_ip:
-            description = bgp.show_intf_desciption(source_interface)
-        bgp_logger.info('Interface description: %s' % description)
-
-        # If no VRF is associated with interface then
-        if vrf_name is None:
-            if nexthop_ip:
-                ping_results = bgp.ping_through_to_end_ip(
-                    nexthop_ip)
-            if tunnel_dest_ip:
-                ping_results = bgp.ping_through_to_end_ip(
-                    tunnel_dest_ip)
+        '''
     else:
         raise SystemExit("This device %s does not run BGP" % ci_fqdn)
 

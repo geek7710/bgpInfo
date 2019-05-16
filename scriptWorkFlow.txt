@@ -4,8 +4,9 @@ RECURRING: BGP adjacency down for neighbor 172.16.1.2  Log message:
 
 BGP adjacency is down for neighbor 172.16.0.2 
  Log message: <189>Dec 28 07:52:37 wp-knox.gpi.remote.hms.cdw.com 238634: 238628: Dec 28 09:52:36.469 PST: %BGP-5-ADJCHANGE: neighbor 172.16.0.2 Down Interface flap
- 
 
+RECURRING: BGP adjacency down for neighbor 139.69.52.250 
+ Log message: <189>May 16 07:10:46 r-tianjintaea-4331.komat.remote.hms.cdw.com 780955: May 16 12:10:45.006 GMT: %BGP-5-ADJCHANGE: neighbor 139.69.52.250 Down BGP Notification sent
 
 r-brigg-4331-hde01-1.brigg.remote.binc.net
 sudo -u  binc /opt/sbin/clogin -c 'sh ip bgp summ' r-brigg-4331-hde01-1.brigg.remote.binc.net
