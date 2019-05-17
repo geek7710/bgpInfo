@@ -52,7 +52,8 @@ class VerifyUserInput(object):
         else:
             # because self.stdout was turned into a list, it now needs to
             # return the single item stripped out of list
-            return self.stdout[0]
+            bgp_logger.info('RETURN FROM ETC/HOST %s' % self.stdout)
+            return self.stdout
 
     def verify_multiple_entries(self):
         '''
@@ -84,10 +85,13 @@ class VerifyUserInput(object):
                     print("You enter and INVALID option. "
                           "Please Try again:\n")
 
-            bgp_logger.info(self.ci_count[selection])
+            bgp_logger.info("SELECTION: %s" % self.ci_count[selection])
             return self.ci_count[selection]
         else:
-            return self.ci_count
+            if isinstance(self.ci_count, list):
+                return self.ci_count[0]
+            else:
+                return self.ci_count
 
     def print_menu(self):
         '''
@@ -108,6 +112,7 @@ class VerifyUserInput(object):
         "wp-hauppauge-sw.gpi.remote.hms.cdw.com"
         '''
         filtered = []
+        bgp_logger.info('filter_findstring_output() methods')
         host_pattern = re.compile(r'\s+(%s)' % self.ci_name, re.IGNORECASE)
         for line in self.stdout:
             if host_pattern.search(line):
@@ -116,7 +121,7 @@ class VerifyUserInput(object):
                     bgp_logger.info(line.split()[1])
                     ci_fqdn = line.split()[1]
                     filtered.append(ci_fqdn)
-        bgp_logger.info(filtered)
+        bgp_logger.info("FILTERED FINDSTRING: %s" % filtered)
         return filtered
 
 
@@ -313,17 +318,15 @@ class AnalyzePingResults(object):
                     pings_sent = srate_pat.match(line).group(4)
                     success_pings = srate_pat.match(line).group(3)
             if success_rate == 0:
-                print("Open a Carrier ticket."
-                      "Circuit is not forwarding Traffic")
+                print("Open a CARRIER TICKET."
+                      " Circuit is not forwarding Traffic")
             if success_rate < 100:
-                print("I see some packet loss")
+                print("There are some PACKET LOSS, "
+                      "This could be a TELCO ISSUE\n")
             if success_rate == 100:
-                print("Circuit looks OK")
+                print("Ping results show Circuit is OK")
         else:
-            print("Ping Results Were Not Received")
-
-    def _packet_loss_retest(self):
-        pass
+            print("Ping Results Were Not Received")      
 
 
 class CiscoCommands(RecursiveLookup):
@@ -336,7 +339,7 @@ class CiscoCommands(RecursiveLookup):
     def verify_ip_protocols(self):
         ''' This method will verify BGP is configured '''
         bgp_logger.info('verify_ip_protocols() method')
-        self.command = 'show ip protocol | s bgp'
+        self.command = 'show ip protocol'
         bgp_as_pattern = re.compile(r'(bgp\s+\d+)')
         output = self.run_cisco_commands()
         for line in output:
@@ -349,8 +352,6 @@ class CiscoCommands(RecursiveLookup):
         bgp_logger.info('clean_clogin_output() method')
         ''' remove prompt output from clogin output '''
         # default values
-        start = 0
-        end = ''
         for index, line in enumerate(clogin_output):
             if self.command in line:
                 start = index
@@ -362,6 +363,8 @@ class CiscoCommands(RecursiveLookup):
         bgp_logger.info('run_cisco_commands() method')
         ''' Run clogin to retrieve command information
         from device '''
+        bgp_logger.info('CI: %s' % self.ci_name)
+        bgp_logger.info('command: %s' % self.command)
         try:
             clogin_process = subprocess.Popen(['sudo', '-u', 'binc',
                                                '/opt/sbin/clogin',
@@ -394,30 +397,16 @@ class CiscoCommands(RecursiveLookup):
         output = self.run_cisco_commands()
         cef_interface_pattern = re.compile(r'(?:\s+)(\S+)(?:\s+)([TGESC]\S+)$')
         ip_pattern = re.compile(r'(\d+\.\d+\.\d+.\d+)')
-        tunnel_list = []
-        nexthop_list = []
-        return_nexthop = []
-        for line in output[1:]:
+ 
+        for line in output:
             if cef_interface_pattern.search(line):
                 nexthop_ip = cef_interface_pattern.search(line).group(1)
-                nexthop_list.append(nexthop_ip)
                 outbound_intf = cef_interface_pattern.search(line).group(2)
-                tunnel_list.append(outbound_intf)
 
-        if len(tunnel_list) == 1:
-            bgp_logger.info('FOUND A SINGLE TUNNEL')
-            if ip_pattern.search(nexthop_ip):
-                return nexthop_ip, outbound_intf
-            else:
-                return None, outbound_intf
-        if len(tunnel_list) == 2:
-            bgp_logger.info('FOUND MULTIPLE TUNNELS')
-            for nexthop in nexthop_list:
-                if ip_pattern.search(nexthop):
-                    return_nexthop.append(nexthop)
-                else:
-                    return_nexthop.append(None)
-            return return_nexthop, tunnel_list
+        if ip_pattern.search(nexthop_ip):
+            return nexthop_ip, outbound_intf
+        else:
+            return None, outbound_intf
 
     def show_dmvpn_interface(self, source_interface, neighbor_ip):
         ''' retrieve dmvpn information '''
@@ -442,6 +431,7 @@ class CiscoCommands(RecursiveLookup):
         for line in output:
             if intf_id_pat.search(line):
                 intf_outbound = intf_id_pat.search(line).group(1)
+                bgp_logger.info('INT OUTBOUND: %s' % intf_outbound)
                 return intf_outbound
         if not intf_outbound:
             return False
@@ -470,10 +460,10 @@ class CiscoCommands(RecursiveLookup):
         output = self.run_cisco_commands()
         return output
 
-    def ping_through_to_end_ip(self, nbma_end_ip):
+    def ping_through_telco(self, nbma_end_ip):
         ''' this method will ping nbma end point ip address to test
             ip connectivity '''
-        bgp_logger.info('ping_through_to_end_ip() method')
+        bgp_logger.info('ping_through_telco() method')
         self.command = "ping " + nbma_end_ip
         output = self.run_cisco_commands()
         return output
@@ -512,6 +502,7 @@ class CiscoCommands(RecursiveLookup):
             return vrf_name
         else:
             return False
+
 
 class Recommendations(object):
     '''
@@ -630,30 +621,62 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
         bgp_logger.info("NEXHOP IP: %s , INTERFACE: %s" %
                         (nexthop_ip, source_interface))
         
-
         # Verify Tunnel configuration, if this is an incomplete
         # implementation stop the script and notify user
         if 'Tunnel' in source_interface:
             vrf_name = bgp.vrf_in_tunnel(source_interface)
             bgp_logger.info("VRF NAME: %s" % vrf_name)
 
-            tunnel_source_intf = bgp.show_vrf_config(vrf_name)
-            bgp_logger.info("TUNNEL SOURCE: %s" % tunnel_source_intf)
-
-            intf_description = bgp.show_intf_desciption(tunnel_source_intf)
-            bgp_logger.info("INTF DESCRIPTION: %s" % intf_description)
+            if vrf_name:
+                tunnel_source_intf = bgp.show_vrf_config(vrf_name)
+                bgp_logger.info("TUNNEL SOURCE: %s" % tunnel_source_intf)
+                intf_description = bgp.show_intf_desciption(tunnel_source_intf)
+                bgp_logger.info("INTF DESCRIPTION: %s" % intf_description)
             
             nexthop_telco = bgp.show_dmvpn_interface(source_interface,
                             neighbor_ip)
             bgp_logger.info("TELCO: %s" % nexthop_telco)
 
-            ping_results = bgp.ping_through_vrf(vrf_name, nexthop_telco)
+            # show_ip_cef returns 2 values, ignoring nexthop IP
+            _, telco_intf = bgp.show_ip_cef(nexthop_telco)
+            bgp_logger.info("TELCO INTF: %s" % telco_intf)
+            intf_description = bgp.show_intf_desciption(telco_intf)
+            bgp_logger.info("INTF DESCRIPTION: %s" % intf_description)
+            
+            if vrf_name:
+                ping_results = bgp.ping_through_vrf(vrf_name, nexthop_telco)
+            else:
+                ping_results = bgp.ping_through_telco(nexthop_telco)
             bgp_logger.info("PING RESULTS: %s" % ping_results)
 
-            verify = Recommendations()
-            verify.bgp_neighbor(bgp_summary, neighbor_ip)
+            ping = AnalyzePingResults(ping_results)
+            ping.anylize_pings()
+
+        else:
+            vrf_name = bgp.vrf_in_interface(source_interface)
+            bgp_logger.info("VRF NAME: %s" % vrf_name)
+            if vrf_name:
+                source_intf = bgp.show_vrf_config(vrf_name)
+                bgp_logger.info("SOURCE INTERFACE: %s" % tunnel_source_intf)
+
+            intf_description = bgp.show_intf_desciption(source_interface)
+            bgp_logger.info("INTF DESCRIPTION: %s" % intf_description)
+
+            if vrf_name:
+                ping_results = bgp.ping_through_vrf(vrf_name, neighbor_ip)
+            else:
+                ping_results = bgp.ping_through_telco(neighbor_ip)
+            bgp_logger.info("PING RESULTS: %s" % ping_results)
+
+            ping = AnalyzePingResults(ping_results)
+            ping.anylize_pings()
 
         '''
+
+        verify = Recommendations()
+        verify.bgp_neighbor(bgp_summary, neighbor_ip)
+
+
         # Query logs, look for interface flaps or BGP State Change entries
         intf_flaps = query_logging.query_lcat_intf_flap(source_interface)
         if intf_flaps:
