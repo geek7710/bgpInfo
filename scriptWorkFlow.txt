@@ -1,6 +1,7 @@
 RECURRING: BGP adjacency down for neighbor 172.16.1.2  Log message: 
 <189>May  8 07:11:11 wp-hauppauge.gpi.remote.binc.net 26735: May  8 08:11:10.598 EDT: %BGP
 
+RECURRING: BGP adjacency down for neighbor 40.131.245.233  Log message: <189>May 16 08:08:39 dc-edge-rtr-win.lfcru.remote.hms.cdw.com 104: May 16 09:08:37.991
 
 BGP adjacency is down for neighbor 172.16.0.2 
  Log message: <189>Dec 28 07:52:37 wp-knox.gpi.remote.hms.cdw.com 238634: 238628: Dec 28 09:52:36.469 PST: %BGP-5-ADJCHANGE: neighbor 172.16.0.2 Down Interface flap
@@ -14,6 +15,10 @@ sudo -u  binc /opt/sbin/clogin -c 'sh ip bgp summ' r-brigg-4331-hde01-1.brigg.re
 10.251.1.1
 10.251.2.1
 
+REYES:
+CI: mbus-cid-rtr1.reyes.remote.hms.cdw.com
+Neighbor: 10.255.10.38
+
 
 10.46.160.133   rbd-santamaria-dmvpn-rtr1.reyes.remote.hms.cdw.com      rbd-santamaria-dmvpn-rtr1
 10.255.251.170  rbd-santamaria-rtr1.reyes.remote.hms.cdw.com    rbd-santamaria-rtr1
@@ -24,7 +29,17 @@ sudo -u  binc /opt/sbin/clogin -c 'sh ip bgp summ' r-brigg-4331-hde01-1.brigg.re
 10.50.80.13     mbus-phoenix-sw4.reyes.remote.hms.cdw.com       mbus-phoenix-sw4
 10.50.128.1     mbus-cid-core-sw1.reyes.remote.hms.cdw.com      mbus-cid-core-sw1
 
+sudo -u binc /opt/sbin/clogin -c 'show ip bgp neigh 139.69.52.250' r-tianjintaea-4331.komat.remote.hms.cdw.com
 
+sudo -u binc /opt/sbin/clogin -c 'show dmvpn inter tun300 | i 139.69.52.250' r-tianjintaea-4331.komat.remote.hms.cdw.com
+
+sudo -u binc /opt/sbin/clogin -c 'show ip cef 139.69.51.250' r-tianjintaea-4331.komat.remote.hms.cdw.com
+
+sudo -u binc /opt/sbin/clogin -c 'show ip vrf' r-tianjintaea-4331.komat.remote.hms.cdw.com
+
+sudo -u binc /opt/sbin/clogin -c 'show ip cef 10.251.1.1' r-brigg-4331-hde01-1.brigg.remote.binc.net
+
+sudo -u sudo -u binc /opt/sbin/clogin -c 'sh run int tu200 | i vrf' r-tianjintaea-4331.komat.remote.hms.cdw.com
 
 =======================
 
@@ -125,5 +140,24 @@ This device sb-6807.gpi.remote.binc.net does not run BGP
 
  ['BGP router identifier 10.202.255.133, local AS number 133', 'BGP table version is 657253, main routing table version 657253', '977 network entries using 140688 bytes of memory', '4822 path entries using 385760 bytes of memory', '373/185 BGP path/bestpath attribute entries using 59680 bytes of memory', '366 BGP AS-PATH entries using 9336 bytes of memory', '0 BGP route-map cache entries using 0 bytes of memory', '0 BGP filter-list cache entries using 0 bytes of memory', 'BGP using 595464 total bytes of memory', '1931 received paths for inbound soft reconfiguration', 'BGP activity 10217/9240 prefixes, 1288760/1283938 paths, scan interval 60 secs', '', 'Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd', '100.65.0.77     4         3549  138940   94389   657253    0    0 4w2d          974', '172.16.0.2      4            2    6145    5909   657253    0    0 22:57:41      957', '172.16.1.2      4            2     615     401   657253    0    0 01:32:28      957']
 2019-05-15 15:04:49,815 - INFO - bgp_neighbor() method
+
+
+r-tianjintaea-4331#sh run int tu200 | i vrf
+ tunnel vrf INET1
+r-tianjintaea-4331#exit
+Connection to r-tianjintaea-4331.komat.remote.hms.cdw.com closed by remote host.
+Connection to r-tianjintaea-4331.komat.remote.hms.cdw.com closed.
+[komat-s-bmn02 migboni 14:52:40]~ $ 
+[komat-s-bmn02 migboni 14:52:45]~ $ 
+[komat-s-bmn02 migboni 14:52:46]~ $ sudo -u sudo -u binc /opt/sbin/clogin -c 'sh run int tu300 | i vrf' r-tianjintaea-4331.komat.remote.hms.cdw.com
+r-tianjintaea-4331.komat.remote.hms.cdw.com
+spawn ssh -c aes256-ctr,3des-cbc -x -l komat-rancid r-tianjintaea-4331.komat.remote.hms.cdw.com
+Password: 
+r-tianjintaea-4331#
+r-tianjintaea-4331#terminal length 0
+r-tianjintaea-4331#terminal width 132
+r-tianjintaea-4331#sh run int tu300 | i vrf
+ tunnel vrf INET2
+r-tianjintaea-4331#exit
 
 
