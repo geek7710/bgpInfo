@@ -392,6 +392,8 @@ class CiscoCommands(RecursiveLookup):
         output = self.run_cisco_commands()
         bgp_logger.info('BGP SUMMARY: \n %s' % output[1:])
         neighbor_summary = False
+        # add a space at the end of IP address to get exact match
+        ip_address = ip_address + ' '
 
         # Verify show ip bgp summary return a False or 
         # the information that is needed.
@@ -660,7 +662,7 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
             verify = Recommendations(neighbor_ip, bgp_summary)
             verify.bgp_neighbor_output()
         else:
-            print("Not able to retrieve 'show ip bgp summary"
+            print("Not able to retrieve 'show ip bgp summary'"
                   " information.")
     
         #Initialize logging class
@@ -687,19 +689,21 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                             neighbor_ip)
             bgp_logger.info("TELCO: %s" % nexthop_telco)
 
-            # show_ip_cef returns 2 values, ignoring nexthop IP
-            _, telco_intf = bgp.show_ip_cef(nexthop_telco)
-            bgp_logger.info("TELCO INTF: %s" % telco_intf)
-            
-            if vrf_name:
-                ping_results = bgp.ping_through_vrf(vrf_name, nexthop_telco)
+            if nexthop_telco:
+                # show_ip_cef returns 2 values, ignoring nexthop IP
+                _, telco_intf = bgp.show_ip_cef(nexthop_telco)
+                bgp_logger.info("TELCO INTF: %s" % telco_intf)
+                if vrf_name:
+                    ping_results = bgp.ping_through_vrf(vrf_name, nexthop_telco)
+                else:
+                    ping_results = bgp.ping_through_telco(nexthop_telco)
+                    bgp_logger.info("PING RESULTS: %s" % ping_results)
+
+                ping = AnalyzePingResults(ping_results)
+                ping.anylize_pings()
             else:
-                ping_results = bgp.ping_through_telco(nexthop_telco)
-            bgp_logger.info("PING RESULTS: %s" % ping_results)
-
-            ping = AnalyzePingResults(ping_results)
-            ping.anylize_pings()
-
+                print("I can't find CARRIER IP ADDRESS, "
+                      "Verify Neighbor IP is correct an run this script again!")
         else:
             vrf_name = bgp.vrf_in_interface(source_interface)
             bgp_logger.info("VRF NAME: %s" % vrf_name)
