@@ -277,7 +277,7 @@ class QueryLogs(object):
                     ['grep', 'BGP'], stdin=grep1_ci.stdout,
                     stdout=subprocess.PIPE)
             grep3_neighbor = subprocess.Popen(
-                    ['grep', neighbor_ip], stdin=grep2_bgp.stdout,
+                    ['grep', neighbor_ip + ' '], stdin=grep2_bgp.stdout,
                     stdout=subprocess.PIPE)
             stdout = grep3_neighbor.communicate()[0]
             stdout = stdout.split('\n')
@@ -662,7 +662,7 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
             verify = Recommendations(neighbor_ip, bgp_summary)
             verify.bgp_neighbor_output()
         else:
-            print("Not able to retrieve 'show ip bgp summary'"
+            print("I am not able to retreive 'show ip bgp summary'"
                   " information.")
     
         #Initialize logging class
@@ -702,8 +702,13 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                 ping = AnalyzePingResults(ping_results)
                 ping.anylize_pings()
             else:
+                print("\n")
                 print("I can't find CARRIER IP ADDRESS, "
                       "Verify Neighbor IP is correct an run this script again!")
+                print("\n")
+                print("Terminating this Script!")
+                print("\n")
+                raise SystemExit("--END--\n")
         else:
             vrf_name = bgp.vrf_in_interface(source_interface)
             bgp_logger.info("VRF NAME: %s" % vrf_name)
