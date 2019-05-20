@@ -198,7 +198,7 @@ class LoggerClass(object):
         global bgp_logger
         bgp_logger = logging.getLogger(__name__)
         bgp_logger.setLevel(logging.INFO)
-        bgp_logger.disabled = False
+        bgp_logger.disabled = True
 
         # self.file_log = logging.FileHandler(log_filename)
         # self.file_log.setLevel(logging.INFO)
