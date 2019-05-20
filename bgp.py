@@ -17,7 +17,7 @@ class VerifyUserInput(object):
     """
     def __init__(self, ci_name=None):
         self.ci_name = ci_name
-        self.verified = None
+        self.verified = False
         self.stdout = None
         self.ci_list = []
         self.ci_count = []
@@ -26,6 +26,10 @@ class VerifyUserInput(object):
         bgp_logger.info('verify_etc_hosts() method')
         ''' run cat /etc/hosts and get list of devices '''
         # declaring function scope variable
+        print(" ")
+        print("I CHECKING THE CI NAME AGAINST /etc/hosts ENTRIES "
+              "ON THIS BMN")
+        print(" ")
         if self.ci_name is None:
             print("You didn't include ci_name")
             return False
@@ -33,8 +37,12 @@ class VerifyUserInput(object):
             try:
                 proc = subprocess.Popen(
                         ['cat', '/etc/hosts'], stdout=subprocess.PIPE)
-                self.stdout = proc.communicate()[0]
+                grep = subprocess.Popen(
+                        ['grep', self.ci_name], 
+                        stdin=proc.stdout, stdout=subprocess.PIPE)
+                self.stdout = grep.communicate()[0]
                 self.stdout = self.stdout.split('\n')
+                bgp_logger.info('SELF.STDOUT_FINDSTRING: %s' % self.stdout)
             except Exception as err:
                 bgp_logger.info(err)
                 raise SystemExit(
@@ -53,6 +61,7 @@ class VerifyUserInput(object):
             # because self.stdout was turned into a list, it now needs to
             # return the single item stripped out of list
             bgp_logger.info('RETURN FROM ETC/HOST %s' % self.stdout)
+            print("I FOUND A VALID ENTRY! ...")
             return self.stdout
 
     def verify_multiple_entries(self):
@@ -97,8 +106,8 @@ class VerifyUserInput(object):
         '''
         print menu if multiple devices with similar name
         '''
-        print("I found multiple entries with similar name,\n"
-              "Choose which ci you want to run this script on,\n"
+        print("I found MULTIPLE entries with similar name,\n"
+              "Choose which CI you want to run this script on,\n"
               "Select a CI by using the number on the left:\n")
         # store the list of indexes
         for index, ci in enumerate(self.ci_count):
@@ -113,10 +122,12 @@ class VerifyUserInput(object):
         '''
         filtered = []
         bgp_logger.info('filter_findstring_output() methods')
-        host_pattern = re.compile(r'\s+(%s)' % self.ci_name, re.IGNORECASE)
+        host_pattern = re.compile(r'(%s)' % self.ci_name, re.IGNORECASE)
         for line in self.stdout:
+            bgp_logger.info('LINE: %s' % line)
             if host_pattern.search(line):
                 self.verified = True
+                bgp_logger.info("VERIFIED: %s" % self.verified)
                 if len(line.split()) == 3:
                     bgp_logger.info(line.split()[1])
                     ci_fqdn = line.split()[1]
@@ -195,7 +206,7 @@ class LoggerClass(object):
         streamLog = logging.StreamHandler()
         streamLog.setLevel(logging.INFO)
 
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s '
+        formatter = logging.Formatter('L:%(lineno)d - %(asctime)s - %(levelname)s '
                                       '- %(message)s')
 
         # self.file_log.setFormatter(formatter)
@@ -312,21 +323,28 @@ class AnalyzePingResults(object):
 
         if self.ping_results:
             for line in self.ping_results:
-                print(line)
                 if srate_pat.match(line):
                     success_rate = int(srate_pat.match(line).group(1))
                     pings_sent = srate_pat.match(line).group(4)
                     success_pings = srate_pat.match(line).group(3)
             if success_rate == 0:
+                print(" ")
                 print("Open a CARRIER TICKET."
                       " Circuit is not forwarding Traffic")
+                print(" ")
             if success_rate < 100:
+                print(" ")
                 print("There are some PACKET LOSS, "
                       "This could be a TELCO ISSUE\n")
+                print(" ")
             if success_rate == 100:
+                print(" ")
                 print("Ping results show Circuit is OK")
+                print(" ")
         else:
-            print("Ping Results Were Not Received")      
+            print(" ")
+            print("Ping Results Were Not Received") 
+            print(" ")     
 
 
 class CiscoCommands(RecursiveLookup):
@@ -398,6 +416,7 @@ class CiscoCommands(RecursiveLookup):
             print('BGP SUMMARY INFORMATION:\n')
             for line in output[1:]:
                 print(line)
+            print(" ")
             neighbor_summary = False
             # add a space at the end of IP address to get exact match
             ip_address = ip_address + ' '
@@ -419,7 +438,7 @@ class CiscoCommands(RecursiveLookup):
         bgp_logger.info('show_ip_cef() method')
         self.command = 'show ip cef ' + ip_address
         output = self.run_cisco_commands()
-        cef_interface_pattern = re.compile(r'(?:\s+)(\S+)(?:\s+)([TGESC]\S+)$')
+        cef_interface_pattern = re.compile(r'(?:\s+)(\S+)(?:\s+)([MTGESC]\S+)$')
         ip_pattern = re.compile(r'(\d+\.\d+\.\d+.\d+)')
  
         for line in output:
@@ -562,7 +581,9 @@ class Recommendations(object):
         # look for prefix received count
         if match_hours:
             hours = int(match_hours.group(1))
+            bgp_logger.info("HOURS:  %s" % hours)
             minutes = int(match_hours.group(2))
+            bgp_logger.info("MINUTES: %s" % minutes)
         else:
             hours = False
 
@@ -579,20 +600,63 @@ class Recommendations(object):
         if state_PfxRcd:
             if days:
                 print("BGP Has been ESTABLISHED for: %s" % days)
+                print("I think it's safe to close this ticket.\n"
+                      "Look for any other tickets opened for remote device"
+                      " if managed by CDW. Hostname printed above!\n"
+                      "If there are tickets on that device, run "
+                      "this script on it to verify circuit is stable.\n")
             if hours:
-                if hours > 0:
-                    print("BGP Flapped not too long ago")
+                if hours >= 2:
+                    print("BGP HAS STOPPED FLAPPING AND IT LOOKS STABLE.")
+                    print(" ")
                     print("BGP Flapped %shr(s) ago" % hours)
+                    print("===================================================")
+                    print("Are there more instances of this incident?\n"
+                          "It's time to correlate and look for any tickets "
+                          "opened for the remote device if managed by CDW. "
+                          "Printed above!\n"
+                          "If there are interfaces going UP/DOWN it must be"
+                          " repoted to Telco.")
+                    print("===========================================================")
+                    print(" ")
+                if hours < 2:
+                    print("IT LOOKS LIKE CONNECTIVITY IS NOT STABLE")
+                    print(" ")
+                    print("BGP Flapped %shr(s) ago" % hours)
+                    print("===========================================================")
+                    print("Are there more instances of this incident?\n"
+                          "I advise you to report to the carrier.\n"
+                          "Also run this script on the remote device if "
+                          "managed by CDW. Printed above!\n"
+                          "Look for any tickets related to remote device"
+                          " and associate that ticket to this one to be"
+                          " worked as related events.")
+                    print("===========================================================")
+                    print(" ")
                 if hours == 0 and minutes:
-                    print("BGP has recently flapped: %d:%d" % (hours, minutes))      
+                    print("THERE ARE SOME CONCERNS ABOUT CIRCUIT STABILITY")
+                    print(" ")
+                    print("BGP Flapped %s ago" % minutes)
+                    print("===========================================================")
+                    print("Are there more instances of this incident?\n"
+                          "I advise you to report to the carrier.\n"
+                          "Also run this script on the remote device if "
+                          "managed by CDW. Printed above!\n"
+                          "Look for any tickets related to remote device"
+                          " and associate that ticket to this one to be"
+                          " worked as related events.")
+                    print("===========================================================")
+                    print(" ")
         else:
-            print("BGP Session is not ESTABLISHED.\n"
+            print(" ")
+            print("BGP Session is NOT Established.\n"
                   "OPEN A CARRIER TICKET!")
-
+        print(" ")
         print("NEIGHBOR <<< %s >>> INFORMATION:" % neighbor_ip)
         print("============================================")
         print(self.bgp_summary)
         print("============================================")
+        print(" ")
 
 
     def _verify_tunnel_config(self, config_tunnel):
@@ -657,8 +721,8 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
 
     # find is neighbor IP is managed by CDW
     print("\n")
-    print("I am verifying if Neighbor IP address  -> %s,"
-          " is managed by CDW\n" % neighbor_ip)
+    print("I AM LOOKING FOR NEIGHBOR IP ADDRESS -> %s,"
+          " ENTRY ON THIS BMN\n" % neighbor_ip)
     findstring = RunFindstring(neighbor_ip)
     cdw_managed = findstring.find_managed()
     if cdw_managed:
@@ -666,8 +730,8 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
               " IS MANAGED BY CDW: %s\n" % (neighbor_ip, cdw_managed))
         bgp_logger.info('Neighbor IP ID: %s' % cdw_managed)
     else:
-        print("NEIGHBO IP ADDRESS: %s,"
-              " IS NOT MANAGED BY CDW\n")
+        print("NEIGHBOR IP ADDRESS: %s IS NOT MANAGED BY CDW\n" % 
+              neighbor_ip)
 
     # Verify if device is configured with BGP
     bgp_as = bgp.verify_ip_protocols()
@@ -700,8 +764,13 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
 
             if vrf_name:
                 tunnel_source_intf = bgp.show_vrf_config(vrf_name)
+                print(" ")
+                print("I found Tunnel interface: %s" % tunnel_source_intf)
                 bgp_logger.info("TUNNEL SOURCE: %s" % tunnel_source_intf)
-                intf_description = bgp.show_intf_desciption(tunnel_source_intf)
+                print(" ")
+                print("Tunnel Interface description: %s" % tunnel_source_intf)
+                intf_description = bgp.show_intf_desciption(
+                                    tunnel_source_intf)
                 bgp_logger.info("INTF DESCRIPTION: %s" % intf_description)
             
             nexthop_telco = bgp.show_dmvpn_interface(source_interface,
@@ -712,11 +781,27 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                 # show_ip_cef returns 2 values, ignoring nexthop IP
                 _, telco_intf = bgp.show_ip_cef(nexthop_telco)
                 bgp_logger.info("TELCO INTF: %s" % telco_intf)
+
+                if telco_intf:
+                    print(" ")
+                    print("Interface connected to Telco: %s" % telco_intf)
+                    intf_description = bgp.show_intf_desciption(
+                                        telco_intf)
+                    bgp_logger.info("INTF DESCRIPTION: %s" % intf_description)
+                    print(" ")
+                    print("Interface Description: %s" % intf_description)
+
                 if vrf_name:
                     ping_results = bgp.ping_through_vrf(vrf_name, nexthop_telco)
                 else:
                     ping_results = bgp.ping_through_telco(nexthop_telco)
                     bgp_logger.info("PING RESULTS: %s" % ping_results)
+                
+                print(" ")
+                print("PING RESULTS:")
+                for line in ping_results:
+                    print(line)
+                print(" ")
 
                 ping = AnalyzePingResults(ping_results)
                 ping.anylize_pings()
@@ -765,7 +850,7 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
         else:
             print("NO BGP ENTIES FOUND IN THE LOG")
     else:
-        raise SystemExit("This device %s does not run BGP" % ci_fqdn)
+        raise SystemExit("BGP is not configured on this device: %s," % ci_fqdn)
 
 
 if __name__ == '__main__':
