@@ -342,11 +342,12 @@ class CiscoCommands(RecursiveLookup):
         self.command = 'show ip protocol'
         bgp_as_pattern = re.compile(r'(bgp\s+\d+)')
         output = self.run_cisco_commands()
+        bgp_admin = False
         for line in output:
             if bgp_as_pattern.search(line):
-                print("This device runs BGP: %s" %
-                      bgp_as_pattern.search(line).group(1))
-                return True
+                bgp_admin = bgp_as_pattern.search(line).group(1)
+        return bgp_admin
+
 
     def clean_clogin_output(self, clogin_output):
         bgp_logger.info('clean_clogin_output() method')
@@ -354,15 +355,18 @@ class CiscoCommands(RecursiveLookup):
         # default values
         start = False
         end = False
-        for index, line in enumerate(clogin_output):
-            if self.command in line:
-                start = index
-            if 'exit' in line:
-                end = index
-        if start:
-            return clogin_output[start:end]
+        if clogin_output:
+            for index, line in enumerate(clogin_output):
+                if self.command in line:
+                    start = index
+                if 'exit' in line:
+                    end = index
+            if start:
+                return clogin_output[start:end]
+            else:
+                return clogin_output
         else:
-            return clogin_output
+            return False
 
     def run_cisco_commands(self):
         bgp_logger.info('run_cisco_commands() method')
@@ -390,21 +394,26 @@ class CiscoCommands(RecursiveLookup):
         bgp_logger.info('show_bgp_neighbor method()')
         self.command = "show ip bgp summary"
         output = self.run_cisco_commands()
-        bgp_logger.info('BGP SUMMARY: \n %s' % output[1:])
-        neighbor_summary = False
-        # add a space at the end of IP address to get exact match
-        ip_address = ip_address + ' '
+        if output:
+            print('BGP SUMMARY INFORMATION:\n')
+            for line in output[1:]:
+                print(line)
+            neighbor_summary = False
+            # add a space at the end of IP address to get exact match
+            ip_address = ip_address + ' '
 
-        # Verify show ip bgp summary return a False or 
-        # the information that is needed.
-        for line in output:
-            if ip_address in line:
-                neighbor_summary = line
-        if neighbor_summary:
-            bgp_logger.info('BGP SUMMARY: %s' % neighbor_summary)
-            return neighbor_summary
+            # Verify show ip bgp summary return a False or 
+            # the information that is needed.
+            for line in output:
+                if ip_address in line:
+                    neighbor_summary = line
+            if neighbor_summary:
+                bgp_logger.info('BGP SUMMARY: %s' % neighbor_summary)
+                return neighbor_summary
+            else:
+                return False
         else:
-            return False
+            return False     # If BGP Summary Output returns False or Empty
 
     def show_ip_cef(self, ip_address):
         bgp_logger.info('show_ip_cef() method')
@@ -580,6 +589,7 @@ class Recommendations(object):
             print("BGP Session is not ESTABLISHED.\n"
                   "OPEN A CARRIER TICKET!")
 
+        print("NEIGHBOR <<< %s >>> INFORMATION:" % neighbor_ip)
         print("============================================")
         print(self.bgp_summary)
         print("============================================")
@@ -646,15 +656,24 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
     bgp = CiscoCommands(ci_fqdn)
 
     # find is neighbor IP is managed by CDW
+    print("\n")
+    print("I am verifying if Neighbor IP address  -> %s,"
+          " is managed by CDW\n" % neighbor_ip)
     findstring = RunFindstring(neighbor_ip)
     cdw_managed = findstring.find_managed()
-    bgp_logger.info('Neighbor IP ID: %s' % cdw_managed)
+    if cdw_managed:
+        print("NEIGHBOR IP ADDRESS: %s,"
+              " IS MANAGED BY CDW: %s\n" % (neighbor_ip, cdw_managed))
+        bgp_logger.info('Neighbor IP ID: %s' % cdw_managed)
+    else:
+        print("NEIGHBO IP ADDRESS: %s,"
+              " IS NOT MANAGED BY CDW\n")
 
     # Verify if device is configured with BGP
     bgp_as = bgp.verify_ip_protocols()
 
     # initialize vrf_name to None
-    vrf_name = None
+    vrf_name = False
     if bgp_as:
         # display show ip bgp summary
         bgp_summary = bgp.show_bgp_summary(neighbor_ip)
