@@ -597,7 +597,7 @@ class Recommendations(object):
             hours = int(match_hours.group(1))
             bgp_logger.info("HOURS:  %s" % hours)
             hrs_minutes = int(match_hours.group(2))
-            bgp_logger.info("MINUTES: %s" % minutes)
+            bgp_logger.info("MINUTES: %s" % hrs_minutes)
         else:
             hours = False
         # look for uptime with day or weeks format
