@@ -1,5 +1,5 @@
 import unittest
-from bgpInfo import LoggerClass, VerifyUserInput
+from bgp import LoggerClass, VerifyUserInput
 
 class TestVerifyuser_input(unittest.TestCase):
     """Testing script on gpi-s-bmn03
@@ -13,34 +13,44 @@ class TestVerifyuser_input(unittest.TestCase):
 
     def test_device_input_equal_none(self):
         print("\n")
+        print("=========================")
         print("Starting ciName test if empty")
+        print("=========================")
         user_input = VerifyUserInput()
         from_user = user_input.verify_etc_hosts()
         self.assertEqual(from_user, False)
 
     def test_device_name_not_found(self):
         print("\n")
+        print("=========================")
         print("Testing ciName not found in BMN")
-        user_input = VerifyUserInput('wp-nwk-atm01')
+        print("=========================")
+        user_input = VerifyUserInput('wp22-hauppauge')
         from_user = user_input.verify_etc_hosts()
         self.assertEqual(from_user, False)
 
     def test_device_name_short(self):
         print("\n")
-        print("Testing ciName short name 'wp-nwk-atm-xr'")
-        user_input = VerifyUserInput('wp-nwk-atm-xr')
+        print("=========================")
+        print("Testing ciName short name 'wp-hauppauge'")
+        print("=========================")
+        user_input = VerifyUserInput('wp-hauppauge')
         from_user = user_input.verify_etc_hosts()
-        self.assertEqual(from_user, 'wp-nwk-atm-xr.gpi.remote.binc.net')
+        self.assertEqual(from_user,
+                         'wp-hauppauge.gpi.remote.binc.net')
 
     def test_device_name_long(self):
         print("\n")
-        print("Testing ciName name FQDN 'wp-nwk-atm-xr.gpi.remote.binc.net'")
-        user_input = VerifyUserInput('wp-nwk-atm-xr.gpi.remote.binc.net')
-        from_user = user_input.verify_etc_hosts()
-        self.assertEqual(from_user, 'wp-nwk-atm-xr.gpi.remote.binc.net')
+        print("=========================")
+        print("Testing ciName name FQDN"
+              " 'wp-hauppauge.gpi.remote.binc.net'")
+        print("=========================")
+        user_input = VerifyUserInput(
+                        'wp-hauppauge.gpi.remote.binc.net')
+        from_etc_hosts = user_input.verify_etc_hosts()
+        self.assertEqual(from_etc_hosts, 
+                         'wp-hauppauge.gpi.remote.binc.net')
 
-
-    def test_
 
 if __name__ == '__main__':
     unittest.main()

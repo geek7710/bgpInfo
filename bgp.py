@@ -53,7 +53,7 @@ class VerifyUserInput(object):
         self.stdout = self.verify_multiple_entries()
 
         # verified will be None if no FQDN was found
-        if self.verified is None:
+        if not self.stdout:
             print("I cannot find %s as a managed device"
                   " in this BMN" % self.ci_name)
             return False
@@ -98,7 +98,13 @@ class VerifyUserInput(object):
             return self.ci_count[selection]
         else:
             if isinstance(self.ci_count, list):
-                return self.ci_count[0]
+                if len(self.ci_count) == 0:
+                    return False
+                else:
+                    try:
+                        return self.ci_count[0]
+                    except IndexError:
+                        return False
             else:
                 return self.ci_count
 
@@ -335,7 +341,7 @@ class AnalyzePingResults(object):
             if success_rate < 100:
                 print(" ")
                 print("There are some PACKET LOSS, "
-                      "This could be a TELCO ISSUE\n")
+                      "This looks like a TELCO ISSUE\n")
                 print(" ")
             if success_rate == 100:
                 print(" ")
@@ -434,20 +440,26 @@ class CiscoCommands(RecursiveLookup):
         else:
             return False     # If BGP Summary Output returns False or Empty
 
-    def show_ip_cef(self, ip_address):
+    def show_ip_cef(self, ip_address, vrf_name=False):
+        '''
+        get vrf information, if vrf exists then use appropriate command
+        '''
         bgp_logger.info('show_ip_cef() method')
-        self.command = 'show ip cef ' + ip_address
+        if vrf_name:
+            self.command = "show ip cef vrf " + vrf_name + " " + ip_address
+        else:
+            self.command = 'show ip cef ' + ip_address
         output = self.run_cisco_commands()
         cef_interface_pattern = re.compile(r'(?:\s+)(\S+)(?:\s+)([MTGESC]\S+)$')
         ip_pattern = re.compile(r'(\d+\.\d+\.\d+.\d+)')
  
         for line in output:
             if cef_interface_pattern.search(line):
-                nexthop_ip = cef_interface_pattern.search(line).group(1)
+                gateway_ip = cef_interface_pattern.search(line).group(1)
                 outbound_intf = cef_interface_pattern.search(line).group(2)
 
-        if ip_pattern.search(nexthop_ip):
-            return nexthop_ip, outbound_intf
+        if ip_pattern.search(gateway_ip):
+            return gateway_ip, outbound_intf
         else:
             return None, outbound_intf
 
@@ -503,10 +515,10 @@ class CiscoCommands(RecursiveLookup):
         output = self.run_cisco_commands()
         return output
 
-    def ping_through_telco(self, nbma_end_ip):
+    def ping_through_isp(self, nbma_end_ip):
         ''' this method will ping nbma end point ip address to test
             ip connectivity '''
-        bgp_logger.info('ping_through_telco() method')
+        bgp_logger.info('ping_through_isp() method')
         self.command = "ping " + nbma_end_ip
         output = self.run_cisco_commands()
         return output
@@ -562,8 +574,9 @@ class Recommendations(object):
         regex: Group(1) = Hrs - Group(2) = Min - Group(3) = Sec
         '''
         bgp_logger.info("bgp_neighbor_output() method")
-        uptime_hours = re.compile(r'(\d{2})(?:\:)(\d{2})(?:\:)(\d{2})')
+        uptime_hours_minutes = re.compile(r'(\d{2})(?:\:)(\d{2})(?:\:)(\d{2})')
         uptime_days = re.compile(r'(?:\s+)(\d+\w\d+\w)(?:\s+\d+)$')
+        uptime_minutes = re.compile(r'(?:00)(?:\:)(\d{2})(?:\:)(\d{2})')
         bgp_state = re.compile(r'(?:\s+)(\S+)$')
         is_digit = re.compile(r'(\d+)')
 
@@ -573,31 +586,43 @@ class Recommendations(object):
         match_state = False
         match_minutes = False
         # match regex to deteremine BGP state
-        match_hours = uptime_hours.search(self.bgp_summary)
+        match_hours = uptime_hours_minutes.search(self.bgp_summary)
         match_days = uptime_days.search(self.bgp_summary)
+        match_minutes = uptime_minutes.search(self.bgp_summary)
         match_state = bgp_state.search(self.bgp_summary).group(0)
         bgp_logger.info("BGP State: %s" % match_state)
 
-        # look for prefix received count
+        # look for uptime greater than 1 hr
         if match_hours:
             hours = int(match_hours.group(1))
             bgp_logger.info("HOURS:  %s" % hours)
-            minutes = int(match_hours.group(2))
+            hrs_minutes = int(match_hours.group(2))
             bgp_logger.info("MINUTES: %s" % minutes)
         else:
             hours = False
-
+        # look for uptime with day or weeks format
         if match_days:
             days = match_days.group(1)
         else:
             days = False
+        # look for uptime with 00 hrs and minutes greater or equal to 00
+        if match_minutes:
+            minutes = int(match_minutes.group(1))
+            seconds = int(match_minutes.group(2))
+        else:
+            minutes = False
 
+        # If PfxRcd is a digit other than a string BGP is down
+        # BGP when UP usually received prefixes so it will show digits
+        #  State/PfxRcd
+        #     1550
         if is_digit.search(match_state):
             state_PfxRcd = is_digit.search(match_state).group(0)
         else:
             state_PfxRcd = False
 
         if state_PfxRcd:
+            # BGP uptime is weeks or days
             if days:
                 print("BGP Has been ESTABLISHED for: %s" % days)
                 print("I think it's safe to close this ticket.\n"
@@ -605,25 +630,31 @@ class Recommendations(object):
                       " if managed by CDW. Hostname printed above!\n"
                       "If there are tickets on that device, run "
                       "this script on it to verify circuit is stable.\n")
+            # BGP uptime is more than or equal to 1hr 
             if hours:
                 if hours >= 2:
                     print("BGP HAS STOPPED FLAPPING AND IT LOOKS STABLE.")
                     print(" ")
-                    print("BGP Flapped %shr(s) ago" % hours)
-                    print("===================================================")
+                    print("BGP Flapped %shr(s) and %smin(s) ago" % 
+                          (hours, hrs_minutes))
+                    print("================================================="
+                          "==========")
                     print("Are there more instances of this incident?\n"
                           "It's time to correlate and look for any tickets "
                           "opened for the remote device if managed by CDW. "
                           "Printed above!\n"
                           "If there are interfaces going UP/DOWN it must be"
                           " repoted to Telco.")
-                    print("===========================================================")
+                    print("================================================="
+                          "==========")
                     print(" ")
                 if hours < 2:
                     print("IT LOOKS LIKE CONNECTIVITY IS NOT STABLE")
                     print(" ")
-                    print("BGP Flapped %shr(s) ago" % hours)
-                    print("===========================================================")
+                    print("BGP Flapped %shr and %smin ago" % 
+                          (hours, hrs_minutes))
+                    print("================================================="
+                          "==========")
                     print("Are there more instances of this incident?\n"
                           "I advise you to report to the carrier.\n"
                           "Also run this script on the remote device if "
@@ -631,23 +662,29 @@ class Recommendations(object):
                           "Look for any tickets related to remote device"
                           " and associate that ticket to this one to be"
                           " worked as related events.")
-                    print("===========================================================")
+                    print("================================================="
+                          "==========")
                     print(" ")
-                if hours == 0 and minutes:
-                    print("THERE ARE SOME CONCERNS ABOUT CIRCUIT STABILITY")
-                    print(" ")
-                    print("BGP Flapped %s ago" % minutes)
-                    print("===========================================================")
-                    print("Are there more instances of this incident?\n"
-                          "I advise you to report to the carrier.\n"
-                          "Also run this script on the remote device if "
-                          "managed by CDW. Printed above!\n"
-                          "Look for any tickets related to remote device"
-                          " and associate that ticket to this one to be"
-                          " worked as related events.")
-                    print("===========================================================")
-                    print(" ")
+            # BGP uptime is only minutes
+            if minutes:
+                print("THERE ARE SOME CONCERNS ABOUT CIRCUIT STABILITY")
+                print(" ")
+                print("BGP Flapped %s minutes and %ssecs ago" % 
+                      (minutes, seconds))
+                print("====================================================="
+                      "======")
+                print("Are there more instances of this incident?\n"
+                      "I advise you to report to the carrier.\n"
+                      "Also run this script on the remote device if "
+                      "managed by CDW. Printed above!\n"
+                      "Look for any tickets related to remote device"
+                      " and associate that ticket to\n"
+                      "this one to be worked as related events.")
+                print("====================================================="
+                      "======")
+                print(" ")
         else:
+            # BGP must be down if 'PfxRcd' is not a digit
             print(" ")
             print("BGP Session is NOT Established.\n"
                   "OPEN A CARRIER TICKET!")
@@ -752,57 +789,64 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
         query_logging = QueryLogs(ci_fqdn)
 
         # display show ip cef <IP> 
-        nexthop_ip, source_interface = bgp.show_ip_cef(neighbor_ip)
+        gateway_ip, cef_interface = bgp.show_ip_cef(neighbor_ip)
         bgp_logger.info("NEXHOP IP: %s , INTERFACE: %s" %
-                        (nexthop_ip, source_interface))
+                        (gateway_ip, cef_interface))
         
         # Verify Tunnel configuration, if this is an incomplete
         # implementation stop the script and notify user
-        if 'Tunnel' in source_interface:
-            vrf_name = bgp.vrf_in_tunnel(source_interface)
+        if 'Tunnel' in cef_interface:
+            # print tunnel interface associated to this BGP neighbo_ip
+            print()
+            print("Associated Tunnel Interface: %s" % cef_interface)
+
+            # run dmvpn command to get tunnel destination telco ip
+            nexthop_isp = bgp.show_dmvpn_interface(cef_interface,
+                            neighbor_ip)
+            bgp_logger.info("TELCO IP: %s" % nexthop_isp)
+
+            # get tunnel vrf name if configured
+            vrf_name = bgp.vrf_in_tunnel(cef_interface)
             bgp_logger.info("VRF NAME: %s" % vrf_name)
 
             if vrf_name:
-                tunnel_source_intf = bgp.show_vrf_config(vrf_name)
-                print(" ")
-                print("I found Tunnel interface: %s" % tunnel_source_intf)
-                bgp_logger.info("TUNNEL SOURCE: %s" % tunnel_source_intf)
-                print(" ")
-                print("Tunnel Interface description: %s" % tunnel_source_intf)
+                # run vrf against the vrf and telco ip
+                gateway_ip, cef_interface = bgp.show_ip_cef(
+                                            neighbor_ip, vrf_name)
+                bgp_logger.info("GATEWAY: %s , INTERFACE: %s" %
+                                (gateway_ip, cef_interface))
+                print()
+                print("ISP/Telco Interface associated with"
+                      " this BGP Peering: %s" % cef_interface)
                 intf_description = bgp.show_intf_desciption(
-                                    tunnel_source_intf)
-                bgp_logger.info("INTF DESCRIPTION: %s" % intf_description)
-            
-            nexthop_telco = bgp.show_dmvpn_interface(source_interface,
-                            neighbor_ip)
-            bgp_logger.info("TELCO: %s" % nexthop_telco)
+                                    cef_interface)
+                bgp_logger.info("ISP DESC: %s" % 
+                                intf_description)
+                print(" ")
+                print("ISP Interface description: %s" % 
+                      intf_description)
+            else:
+                # run vrf against the vrf and telco ip
+                gateway_ip, cef_interface = bgp.show_ip_cef(
+                                            neighbor_ip)
+                intf_description = bgp.show_intf_desciption(
+                                    cef_interface)
+                bgp_logger.info("ISP DESC: %s" % 
+                                intf_description)
 
-            if nexthop_telco:
-                # show_ip_cef returns 2 values, ignoring nexthop IP
-                _, telco_intf = bgp.show_ip_cef(nexthop_telco)
-                bgp_logger.info("TELCO INTF: %s" % telco_intf)
-
-                if telco_intf:
-                    print(" ")
-                    print("Interface connected to Telco: %s" % telco_intf)
-                    intf_description = bgp.show_intf_desciption(
-                                        telco_intf)
-                    bgp_logger.info("INTF DESCRIPTION: %s" % intf_description)
-                    print(" ")
-                    print("Interface Description: %s" % intf_description)
-
+            if nexthop_isp:
                 if vrf_name:
-                    ping_results = bgp.ping_through_vrf(vrf_name, nexthop_telco)
+                    # ping accross ISP network
+                    ping_results = bgp.ping_through_vrf(vrf_name, nexthop_isp)
                 else:
-                    ping_results = bgp.ping_through_telco(nexthop_telco)
-                    bgp_logger.info("PING RESULTS: %s" % ping_results)
-                
+                    ping_results = bgp.ping_through_isp(nexthop_isp)
+                bgp_logger.info("PING RESULTS: %s" % ping_results)
                 print(" ")
                 print("PING RESULTS:")
                 for line in ping_results:
                     print(line)
                 print(" ")
-
+                # analyze ping results
                 ping = AnalyzePingResults(ping_results)
                 ping.anylize_pings()
             else:
@@ -814,40 +858,69 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                 print("\n")
                 raise SystemExit("--END--\n")
         else:
-            vrf_name = bgp.vrf_in_interface(source_interface)
+            print()
+            print("Associated Interface with this BGP Peering: %s" %
+                  cef_interface)
+            vrf_name = bgp.vrf_in_interface(cef_interface)
             bgp_logger.info("VRF NAME: %s" % vrf_name)
-            if vrf_name:
-                source_intf = bgp.show_vrf_config(vrf_name)
-                bgp_logger.info("SOURCE INTERFACE: %s" % tunnel_source_intf)
 
-            intf_description = bgp.show_intf_desciption(source_interface)
-            bgp_logger.info("INTF DESCRIPTION: %s" % intf_description)
+            if vrf_name:
+                print()
+                print("There's a VRF:{ %s } associated to interface: %s" %
+                      (vrf_name, cef_interface))
+                gateway_ip, cef_interface = bgp.show_ip_cef(
+                                            neighbor_ip, vrf_name)
+                bgp_logger.info("GATEWAY: %s , INTERFACE: %s" %
+                                (gateway_ip, cef_interface))
+                intf_description = bgp.show_intf_desciption(
+                                    cef_interface)
+                bgp_logger.info("ISP DESC: %s" % 
+                                intf_description)
+                print(" ")
+                print("ISP/Telco Interface description: %s" % 
+                      intf_description)
+            else:
+                # run vrf against the vrf and telco ip
+                gateway_ip, cef_interface = bgp.show_ip_cef(
+                                            neighbor_ip)
+                intf_description = bgp.show_intf_desciption(
+                                    cef_interface)
+                bgp_logger.info("ISP DESC: %s" % 
+                                intf_description)
 
             if vrf_name:
                 ping_results = bgp.ping_through_vrf(vrf_name, neighbor_ip)
             else:
-                ping_results = bgp.ping_through_telco(neighbor_ip)
+                ping_results = bgp.ping_through_isp(neighbor_ip)
             bgp_logger.info("PING RESULTS: %s" % ping_results)
 
+            print()
+            print("PING RESULTS:")
+            for line in ping_results:
+                print(line)
+            # analyze ping results and look for packet loss of failed ping
             ping = AnalyzePingResults(ping_results)
             ping.anylize_pings()
 
         # Query logs, look for interface flaps or BGP State Change entries
-        intf_flaps = query_logging.query_lcat_intf_flap(source_interface)
+        intf_flaps = query_logging.query_lcat_intf_flap(cef_interface)
         if intf_flaps:
             print("This circuit has been flapping and it has to be"
                   " reported to Carrier.")
             for line in intf_flaps:
                 print(line)
         else:
+            print(" ")
             print("NO INTERFACE FLAPS FOUND")
         # Query logs for BGP and neighbor IP state changes
         bgp_logs = query_logging.query_lcat_bgp(neighbor_ip)
         if bgp_logs:
+            print(" ")
             print("OPEN A CARRIER TICKET TO REPORT THIS BGP INSTABILITY")
             for line in bgp_logs:
                 print(line)
         else:
+            print(" ")
             print("NO BGP ENTIES FOUND IN THE LOG")
     else:
         raise SystemExit("BGP is not configured on this device: %s," % ci_fqdn)

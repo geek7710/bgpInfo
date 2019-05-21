@@ -19,6 +19,11 @@ REYES:
 CI: mbus-cid-rtr1.reyes.remote.hms.cdw.com
 Neighbor: 10.255.10.38
 
+REYES:
+CI: rccb-coachella-r1.reyes.remote.hms.cdw.com
+Neighbor: 10.255.8.214
+
+
 
 10.46.160.133   rbd-santamaria-dmvpn-rtr1.reyes.remote.hms.cdw.com      rbd-santamaria-dmvpn-rtr1
 10.255.251.170  rbd-santamaria-rtr1.reyes.remote.hms.cdw.com    rbd-santamaria-rtr1
