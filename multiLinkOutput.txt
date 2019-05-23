@@ -1,0 +1,23 @@
+show ppp multilink
+
+Multilink1
+  Bundle name: 20C700063D749FA07ACEF9C2000000A800000084
+  Remote Endpoint Discriminator: [4] 20C700063D749FA07ACEF9C2000000A800000084
+  Local Endpoint Discriminator: [1] RCCB-COACHELLA-R1
+  Bundle up for 2w0d, total bandwidth 6144, load 9/255
+  Receive buffer limit 48000 bytes, frag timeout 1000 ms
+  Bundle is Distributed
+    0/0 fragments/bytes in reassembly list
+    10 lost fragments, 32682710 reordered
+    0/0 discarded fragments/bytes, 0 lost received
+    0x90CE8E received sequence, 0x7C3608 sent sequence
+  Platform Specific Multilink PPP info
+    NOTE: internal keyword not applicable on this platform
+    Interleaving: Disabled, Fragmentation: Disabled
+  Member links: 4 active, 0 inactive (max 16, min not set)
+    Se0/1/0:0, since 2w0d
+    Se0/1/2:0, since 2w0d
+    Se0/1/1:0, since 2w0d
+    Se0/1/3:0, since 2w0d
+No inactive multilink interfaces
+RCCB-COACHELLA-R1#

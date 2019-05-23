@@ -36,13 +36,15 @@ class VerifyUserInput(object):
         else:
             try:
                 proc = subprocess.Popen(
-                        ['cat', '/etc/hosts'], stdout=subprocess.PIPE)
+                    ['cat', '/etc/hosts'], stdout=subprocess.PIPE)
                 grep = subprocess.Popen(
-                        ['grep', self.ci_name], 
-                        stdin=proc.stdout, stdout=subprocess.PIPE)
+                    ['grep', self.ci_name],
+                    stdin=proc.stdout, stdout=subprocess.PIPE)
+
                 self.stdout = grep.communicate()[0]
                 self.stdout = self.stdout.split('\n')
                 bgp_logger.info('SELF.STDOUT_FINDSTRING: %s' % self.stdout)
+
             except Exception as err:
                 bgp_logger.info(err)
                 raise SystemExit(
@@ -146,7 +148,7 @@ class RunFindstring(object):
     '''
     Run findstring on neighbor IP to verify if it is managed by CDW
     '''
-    def __init__(self, neighbor_ip = None):
+    def __init__(self, neighbor_ip=None):
         self.neighbor_ip = neighbor_ip
         bgp_logger.info('run_findstring() class')
 
@@ -162,8 +164,7 @@ class RunFindstring(object):
         else:
             self.neighbor_ip = "ip address " + self.neighbor_ip + " "
             try:
-                proc = subprocess.Popen(
-                                        ['findstring','-d',
+                proc = subprocess.Popen(['findstring', '-d',
                                         self.neighbor_ip],
                                         stdout=subprocess.PIPE)
                 grep = subprocess.Popen(['grep',
@@ -171,9 +172,9 @@ class RunFindstring(object):
                                         stdin=proc.stdout,
                                         stdout=subprocess.PIPE)
                 awk = subprocess.Popen(['awk',
-                                        '{print $2}'],
-                                        stdin=grep.stdout,
-                                        stdout=subprocess.PIPE)
+                                       '{print $2}'],
+                                       stdin=grep.stdout,
+                                       stdout=subprocess.PIPE)
                 stdout = awk.communicate()[0]
             except Exception as err:
                 bgp_logger.info(err)
@@ -204,7 +205,7 @@ class LoggerClass(object):
         global bgp_logger
         bgp_logger = logging.getLogger(__name__)
         bgp_logger.setLevel(logging.INFO)
-        bgp_logger.disabled = True
+        bgp_logger.disabled = False
 
         # self.file_log = logging.FileHandler(log_filename)
         # self.file_log.setLevel(logging.INFO)
@@ -212,9 +213,8 @@ class LoggerClass(object):
         streamLog = logging.StreamHandler()
         streamLog.setLevel(logging.INFO)
 
-        formatter = logging.Formatter('L:%(lineno)d - %(asctime)s - %(levelname)s '
-                                      '- %(message)s')
-
+        formatter = logging.Formatter('L:%(lineno)d - %(asctime)s - '
+                                      '%(levelname)s - %(message)s')
         # self.file_log.setFormatter(formatter)
         streamLog.setFormatter(formatter)
 
@@ -252,16 +252,16 @@ class QueryLogs(object):
         bgp_logger.info('CI SHORT NAME: %s' % ci_name_short)
         try:
             lcat_process = subprocess.Popen(
-                    ['lcat', 'silo'], stdout=subprocess.PIPE)
+                ['lcat', 'silo'], stdout=subprocess.PIPE)
             grep1_ci = subprocess.Popen(
-                    ['grep', ci_name_short], stdin=lcat_process.stdout,
-                    stdout=subprocess.PIPE)
+                ['grep', ci_name_short], stdin=lcat_process.stdout,
+                stdout=subprocess.PIPE)
             grep2_interface = subprocess.Popen(
-                    ['grep', interface_name], stdin=grep1_ci.stdout,
-                    stdout=subprocess.PIPE)
+                ['grep', interface_name], stdin=grep1_ci.stdout,
+                stdout=subprocess.PIPE)
             stdout = grep2_interface.communicate()[0]
             stdout = stdout.split('\n')
-            # return false if no %LINEPROTO-5-UPDOWN entry is found 
+            # return false if no %LINEPROTO-5-UPDOWN entry is found
             # in log line
             for line in stdout:
                 if 'UPDOWN' in line:
@@ -286,16 +286,16 @@ class QueryLogs(object):
         bgp_logger.info('CI SHORT NAME: %s' % ci_name_short)
         try:
             lcat_process = subprocess.Popen(
-                    ['lcat', 'silo'], stdout=subprocess.PIPE)
+                ['lcat', 'silo'], stdout=subprocess.PIPE)
             grep1_ci = subprocess.Popen(
-                    ['grep', ci_name_short], stdin=lcat_process.stdout,
-                    stdout=subprocess.PIPE)
+                ['grep', ci_name_short], stdin=lcat_process.stdout,
+                stdout=subprocess.PIPE)
             grep2_bgp = subprocess.Popen(
-                    ['grep', 'BGP'], stdin=grep1_ci.stdout,
-                    stdout=subprocess.PIPE)
+                ['grep', 'BGP'], stdin=grep1_ci.stdout,
+                stdout=subprocess.PIPE)
             grep3_neighbor = subprocess.Popen(
-                    ['grep', neighbor_ip + ' '], stdin=grep2_bgp.stdout,
-                    stdout=subprocess.PIPE)
+                ['grep', neighbor_ip + ' '], stdin=grep2_bgp.stdout,
+                stdout=subprocess.PIPE)
             stdout = grep3_neighbor.communicate()[0]
             stdout = stdout.split('\n')
             for line in stdout:
@@ -315,9 +315,9 @@ class QueryLogs(object):
 
 class AnalyzePingResults(object):
     '''
-    determine if ping fails, packet drops.  
+    determine if ping fails, packet drops.
     '''
-    def __init__(self, ping_results = False):
+    def __init__(self, ping_results=False):
         self.ping_results = ping_results
 
     def anylize_pings(self):
@@ -331,8 +331,8 @@ class AnalyzePingResults(object):
             for line in self.ping_results:
                 if srate_pat.match(line):
                     success_rate = int(srate_pat.match(line).group(1))
-                    pings_sent = srate_pat.match(line).group(4)
-                    success_pings = srate_pat.match(line).group(3)
+                    # pings_sent = srate_pat.match(line).group(4)
+                    # success_pings = srate_pat.match(line).group(3)
             if success_rate == 0:
                 print(" ")
                 print("Open a CARRIER TICKET."
@@ -349,8 +349,8 @@ class AnalyzePingResults(object):
                 print(" ")
         else:
             print(" ")
-            print("Ping Results Were Not Received") 
-            print(" ")     
+            print("Ping Results Were Not Received")
+            print(" ")
 
 
 class CiscoCommands(RecursiveLookup):
@@ -372,6 +372,61 @@ class CiscoCommands(RecursiveLookup):
                 bgp_admin = bgp_as_pattern.search(line).group(1)
         return bgp_admin
 
+    def show_multilink_members(self):
+        '''
+        this method returns a dictionary of interfaces along with
+        state and protocol status UP/DOWN.
+        '''
+        bgp_logger.info('show_multilink_members() method')
+        self.command = "show ppp multilink"
+        output = self.run_cisco_commands()
+
+        t1_members_pat = re.compile(
+            r'(?:Member links:\s+)(\d)(?:\s+active,\s+)(\d)(?:\sinactive\s)')
+        serial_short_pat = re.compile(r'(Se\S+)(?:,\s)')
+
+        # dictonary to store multilink member interfaces and status
+        multilink_dict = lambda: defaultdict(multilink_dict)
+        multilink_members = multilink_dict()
+        multilink_members = {"interface": {}}
+        multilink_members.update({"active": ''})
+        multilink_members.update({"inactive": ''})
+        for line in output:
+            bgp_logger.info('INT: %s' % line)
+            if t1_members_pat.search(line):
+                active = t1_members_pat.search(line).group(1)
+                multilink_members["active"] = active
+                inactive = t1_members_pat.search(line).group(2)
+                multilink_members["inactive"] = inactive
+            if serial_short_pat.search(line):
+                intf_id = serial_short_pat.search(line).group(1)
+                multilink_members["interface"].update({intf_id: {}})
+        # multilink_members = self._show_controllers_T1(multilink_members)
+        return dict(multilink_members)
+
+    def show_alarms_T1(self, multilink_members):
+        '''
+        verify if there's any alarms on T1
+        '''
+        bgp_logger.info('_show_controllers_T1() method')
+        controller_pat = re.compile(r'[S|s]e(rial)?(\S+)(?::\d)')
+        for T1s in multilink_members["interface"].keys():
+            bgp_logger.info('T1s: %s' % T1s)
+            if controller_pat.search(T1s):
+                multilink_members["interface"][T1s].update({"alarms": []})
+                # show controllers T1 0/1/1 brief | i Description|State:
+                self.command = "show controllers T1 "
+                self.command += controller_pat.search(T1s).group(1) + " brief"
+                self.command += " | i Description|State:"
+                output = self.run_cisco_commands()
+                for line in output:
+                    if "Description" in line:
+                        multilink_members["interface"][T1s]["description"].append(
+                            line)
+                    if "State:" in line:
+                        multilink_members["interface"][T1s]["alarms"].append(
+                            line)
+        return multilink_members
 
     def clean_clogin_output(self, clogin_output):
         bgp_logger.info('clean_clogin_output() method')
@@ -387,6 +442,8 @@ class CiscoCommands(RecursiveLookup):
                     end = index
             if start:
                 return clogin_output[start:end]
+            if end:
+                return clogin_output[:end]
             else:
                 return clogin_output
         else:
@@ -406,7 +463,7 @@ class CiscoCommands(RecursiveLookup):
             clogin_output = clogin_process.communicate()[0]
             clogin_output = clogin_output.split('\r\n')
             return self.clean_clogin_output(clogin_output)
-            #return clogin_output
+            # return clogin_output
         except Exception as err:
             raise SystemExit('clogin process failed for device: %s\n'
                              'ERROR: %s' % (self.ci_name, err))
@@ -427,7 +484,7 @@ class CiscoCommands(RecursiveLookup):
             # add a space at the end of IP address to get exact match
             ip_address = ip_address + ' '
 
-            # Verify show ip bgp summary return a False or 
+            # Verify show ip bgp summary return a False or
             # the information that is needed.
             for line in output:
                 if ip_address in line:
@@ -450,9 +507,11 @@ class CiscoCommands(RecursiveLookup):
         else:
             self.command = 'show ip cef ' + ip_address
         output = self.run_cisco_commands()
-        cef_interface_pattern = re.compile(r'(?:\s+)(\S+)(?:\s+)([MTGESC]\S+)$')
+        cef_interface_pattern = re.compile(
+            r'(?:\s+)(\S+)(?:\s+)([MTGESC]\S+)$')
+
         ip_pattern = re.compile(r'(\d+\.\d+\.\d+.\d+)')
- 
+
         for line in output:
             if cef_interface_pattern.search(line):
                 gateway_ip = cef_interface_pattern.search(line).group(1)
@@ -630,12 +689,12 @@ class Recommendations(object):
                       " if managed by CDW. Hostname printed above!\n"
                       "If there are tickets on that device, run "
                       "this script on it to verify circuit is stable.\n")
-            # BGP uptime is more than or equal to 1hr 
+            # BGP uptime is more than or equal to 1hr
             if hours:
                 if hours >= 2:
                     print("BGP HAS STOPPED FLAPPING AND IT LOOKS STABLE.")
                     print(" ")
-                    print("BGP Flapped %shr(s) and %smin(s) ago" % 
+                    print("BGP Flapped %shr(s) and %smin(s) ago" %
                           (hours, hrs_minutes))
                     print("================================================="
                           "==========")
@@ -651,7 +710,7 @@ class Recommendations(object):
                 if hours < 2:
                     print("IT LOOKS LIKE CONNECTIVITY IS NOT STABLE")
                     print(" ")
-                    print("BGP Flapped %shr and %smin ago" % 
+                    print("BGP Flapped %shr and %smin ago" %
                           (hours, hrs_minutes))
                     print("================================================="
                           "==========")
@@ -669,7 +728,7 @@ class Recommendations(object):
             if minutes:
                 print("THERE ARE SOME CONCERNS ABOUT CIRCUIT STABILITY")
                 print(" ")
-                print("BGP Flapped %s minutes and %ssecs ago" % 
+                print("BGP Flapped %s minutes and %ssecs ago" %
                       (minutes, seconds))
                 print("====================================================="
                       "======")
@@ -695,7 +754,6 @@ class Recommendations(object):
         print("============================================")
         print(" ")
 
-
     def _verify_tunnel_config(self, config_tunnel):
         '''
         if tunnel if not configured properly, alert of a false positive alarm
@@ -710,12 +768,24 @@ class Recommendations(object):
                 checked[1] = True
             if 'tunnel mode' in line:
                 checked[2] = True
-        if any(checked) == False:
+        if any(checked) is False:
             SystemExit("Tunnel Configuration is Incomplete"
-                             "Forward ticket to ECC to confirm")
-        if any(checked) == True:
+                       "Forward ticket to ECC to confirm")
+        if any(checked) is True:
             bgp_logger.info("TUNNEL CONFIGURAITON CHECK: PASS")
             return True
+
+
+class MultilinkCheck(object):
+    '''
+    This class contains methods that will help identify Multilink members
+    and also check each individual status for any alarms on each T1
+    '''
+    def identify_members(self):
+        pass
+
+    def _show_ip_interface(self):
+        pass
 
 
 def argument_parser():
@@ -767,7 +837,7 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
               " IS MANAGED BY CDW: %s\n" % (neighbor_ip, cdw_managed))
         bgp_logger.info('Neighbor IP ID: %s' % cdw_managed)
     else:
-        print("NEIGHBOR IP ADDRESS: %s IS NOT MANAGED BY CDW\n" % 
+        print("NEIGHBOR IP ADDRESS: %s IS NOT MANAGED BY CDW\n" %
               neighbor_ip)
 
     # Verify if device is configured with BGP
@@ -777,6 +847,8 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
     vrf_name = False
     if bgp_as:
         # display show ip bgp summary
+        pp = pprint.PrettyPrinter(indent=2)
+
         bgp_summary = bgp.show_bgp_summary(neighbor_ip)
         if bgp_summary:
             verify = Recommendations(neighbor_ip, bgp_summary)
@@ -784,15 +856,15 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
         else:
             print("I am not able to retreive 'show ip bgp summary'"
                   " information.")
-    
-        #Initialize logging class
+
+        # Initialize logging class
         query_logging = QueryLogs(ci_fqdn)
 
-        # display show ip cef <IP> 
+        # display show ip cef <IP>
         gateway_ip, cef_interface = bgp.show_ip_cef(neighbor_ip)
         bgp_logger.info("NEXHOP IP: %s , INTERFACE: %s" %
                         (gateway_ip, cef_interface))
-        
+
         # Verify Tunnel configuration, if this is an incomplete
         # implementation stop the script and notify user
         if 'Tunnel' in cef_interface:
@@ -802,7 +874,7 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
 
             # run dmvpn command to get tunnel destination telco ip
             nexthop_isp = bgp.show_dmvpn_interface(cef_interface,
-                            neighbor_ip)
+                                                   neighbor_ip)
             bgp_logger.info("TELCO IP: %s" % nexthop_isp)
 
             # get tunnel vrf name if configured
@@ -812,27 +884,30 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
             if vrf_name:
                 # run vrf against the vrf and telco ip
                 gateway_ip, cef_interface = bgp.show_ip_cef(
-                                            neighbor_ip, vrf_name)
+                    neighbor_ip, vrf_name)
                 bgp_logger.info("GATEWAY: %s , INTERFACE: %s" %
                                 (gateway_ip, cef_interface))
                 print()
                 print("ISP/Telco Interface associated with"
                       " this BGP Peering: %s" % cef_interface)
-                intf_description = bgp.show_intf_desciption(
-                                    cef_interface)
-                bgp_logger.info("ISP DESC: %s" % 
-                                intf_description)
+                intf_description = bgp.show_intf_desciption(cef_interface)
+                bgp_logger.info("ISP DESC: %s" % intf_description)
                 print(" ")
-                print("ISP Interface description: %s" % 
+                print("ISP Interface description: %s" %
                       intf_description)
             else:
-                # run vrf against the vrf and telco ip
-                gateway_ip, cef_interface = bgp.show_ip_cef(
-                                            neighbor_ip)
-                intf_description = bgp.show_intf_desciption(
-                                    cef_interface)
-                bgp_logger.info("ISP DESC: %s" % 
-                                intf_description)
+                # run pings against the vrf and telco ip
+                gateway_ip, cef_interface = bgp.show_ip_cef(neighbor_ip)
+
+                # if Multilink interface, the script is going to pull the
+                # member interfaces to retreive individual status UP or
+                # alarms
+                if 'Multilink' in cef_interface:
+                    # multilink = MultilinkCheck(cef_interface)
+                    multilink_members_dict = bgp.show_multilink_members()
+                    pp.pprint(multilink_members_dict)
+                intf_description = bgp.show_intf_desciption(cef_interface)
+                bgp_logger.info("ISP DESC: %s" % intf_description)
 
             if nexthop_isp:
                 if vrf_name:
@@ -852,7 +927,8 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
             else:
                 print("\n")
                 print("I can't find CARRIER IP ADDRESS, "
-                      "Verify Neighbor IP is correct an run this script again!")
+                      "Verify Neighbor IP is correct an run"
+                      "this script again!")
                 print("\n")
                 print("Terminating this Script!")
                 print("\n")
@@ -869,24 +945,26 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                 print("There's a VRF:{ %s } associated to interface: %s" %
                       (vrf_name, cef_interface))
                 gateway_ip, cef_interface = bgp.show_ip_cef(
-                                            neighbor_ip, vrf_name)
+                    neighbor_ip, vrf_name)
                 bgp_logger.info("GATEWAY: %s , INTERFACE: %s" %
                                 (gateway_ip, cef_interface))
-                intf_description = bgp.show_intf_desciption(
-                                    cef_interface)
-                bgp_logger.info("ISP DESC: %s" % 
-                                intf_description)
+                intf_description = bgp.show_intf_desciption(cef_interface)
+                bgp_logger.info("ISP DESC: %s" % intf_description)
                 print(" ")
-                print("ISP/Telco Interface description: %s" % 
+                print("ISP/Telco Interface description: %s" %
                       intf_description)
             else:
-                # run vrf against the vrf and telco ip
-                gateway_ip, cef_interface = bgp.show_ip_cef(
-                                            neighbor_ip)
-                intf_description = bgp.show_intf_desciption(
-                                    cef_interface)
-                bgp_logger.info("ISP DESC: %s" % 
-                                intf_description)
+                # run pings against the vrf and telco ip
+                gateway_ip, cef_interface = bgp.show_ip_cef(neighbor_ip)
+                # if Multilink interface, the script is going to pull the
+                # member interfaces to retreive individual status UP or
+                # alarms
+                if 'Multilink' in cef_interface:
+                    # multilink = MultilinkCheck(cef_interface)
+                    multilink_members_dict = bgp.show_multilink_members()
+                    pp.pprint(multilink_members_dict)
+                intf_description = bgp.show_intf_desciption(cef_interface)
+                bgp_logger.info("ISP DESC: %s" % intf_description)
 
             if vrf_name:
                 ping_results = bgp.ping_through_vrf(vrf_name, neighbor_ip)
@@ -930,10 +1008,6 @@ if __name__ == '__main__':
     #  bgpInfo -d wp-nwk-atm-xr.gpi.remote.binc.net
     # Initializing Dictionary to Store BGP information
     try:
-        bgp_dict = lambda: defaultdict(bgp_dict)
-        bgp_info_dict = bgp_dict()
-        __slots__ = bgp_info_dict
-
         # Initialize logging module
         LoggerClass.logging()
 
