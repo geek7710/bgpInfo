@@ -23,6 +23,8 @@ REYES:
 CI: rccb-coachella-r1.reyes.remote.hms.cdw.com
 Neighbor: 10.255.8.214
 
+sudo -u binc /opt/sbin/clogin -c 'show ip int b' rccb-coachella-r1.reyes.remote.hms.cdw.com
+
 
 
 10.46.160.133   rbd-santamaria-dmvpn-rtr1.reyes.remote.hms.cdw.com      rbd-santamaria-dmvpn-rtr1

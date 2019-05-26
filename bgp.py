@@ -27,11 +27,11 @@ class VerifyUserInput(object):
         ''' run cat /etc/hosts and get list of devices '''
         # declaring function scope variable
         print(" ")
-        print("I CHECKING THE CI NAME AGAINST /etc/hosts ENTRIES "
+        print("I AM CHECKING THE CI NAME AGAINST \"/etc/hosts\" ENTRIES "
               "ON THIS BMN")
         print(" ")
         if self.ci_name is None:
-            print("You didn't include ci_name")
+            print("YOU DIDN'T INCLUDE DEVICE NAME!")
             return False
         else:
             try:
@@ -64,6 +64,7 @@ class VerifyUserInput(object):
             # return the single item stripped out of list
             bgp_logger.info('RETURN FROM ETC/HOST %s' % self.stdout)
             print("I FOUND A VALID ENTRY! ...")
+            print()
             return self.stdout
 
     def verify_multiple_entries(self):
@@ -143,6 +144,49 @@ class VerifyUserInput(object):
         bgp_logger.info("FILTERED FINDSTRING: %s" % filtered)
         return filtered
 
+    def test_connectivity(self):
+        '''
+        Test if device entered is down. I will ping twice
+        '''
+        bgp_logger.info('test_connectivity() method')
+        try:
+            ping_subprocess = subprocess.Popen(
+                ['ping', '-c 2', self.ci_name], stdout=subprocess.PIPE)
+            ping = ping_subprocess.communicate()[0]
+            ping = ping.split('\n')
+        except Exception as err:
+            bgp_logger.info("ERROR: %s" % err)
+            raise SystemExit(
+                "I WAS NOT ABLE TO TEST CONNECTIVITY TO: %s\n"
+                "PYTHON SUBPROCESS HAS FAILED!")
+        connectivity = self._verify_ping_results(ping)
+        if connectivity:
+            return True
+
+    def _verify_ping_results(self, ping):
+        '''
+        run regex against the ping output
+        '''
+        bgp_logger.info('_verify_ping_results() method')
+        success_pat = re.compile('''(?:\d+\spackets\stransmitted\,\s+)
+            (\d+)(?:\s+received\,.+)''', re.VERBOSE)
+        # packet_count will be False as default
+        packet_count = False
+        for line in ping:
+            bgp_logger.info("CONNECTIVITY TEST: %s" % line)
+            if success_pat.search(line):
+                bgp_logger.info('PING: FOUND A MATCH')
+                packet_count = int(success_pat.search(line).group(1))
+                if packet_count > 0:
+                    # connectivity test pass, return TRUE
+                    bgp_logger.info("PACKET_COUNT: %s" % packet_count)
+                    return True
+        # this should also stop script if packet_count is 0
+        if not packet_count:
+            raise SystemExit("\nI CANNOT ESTABLISH CONNECTIVITY!\n"
+                             "THIS DEVICE: %s SEEMS TO BE DOWN.\n"
+                             % self.ci_name)
+
 
 class RunFindstring(object):
     '''
@@ -205,7 +249,7 @@ class LoggerClass(object):
         global bgp_logger
         bgp_logger = logging.getLogger(__name__)
         bgp_logger.setLevel(logging.INFO)
-        bgp_logger.disabled = False
+        bgp_logger.disabled = True
 
         # self.file_log = logging.FileHandler(log_filename)
         # self.file_log.setLevel(logging.INFO)
@@ -401,31 +445,59 @@ class CiscoCommands(RecursiveLookup):
             if serial_short_pat.search(line):
                 intf_id = serial_short_pat.search(line).group(1)
                 multilink_members["interface"].update({intf_id: {}})
-        # multilink_members = self._show_controllers_T1(multilink_members)
+        multilink_members = self._show_alarms_T1(multilink_members)
         return dict(multilink_members)
 
-    def show_alarms_T1(self, multilink_members):
+    def _show_alarms_T1(self, multilink_members):
         '''
         verify if there's any alarms on T1
         '''
         bgp_logger.info('_show_controllers_T1() method')
-        controller_pat = re.compile(r'[S|s]e(rial)?(\S+)(?::\d)')
+        print("")
+        print("Looking for alarms on T1s, this may take a few seconds")
+        controller_pat = re.compile(r'(?:[S|s]e(?:rial)?)(\S+)(?::\d)')
         for T1s in multilink_members["interface"].keys():
             bgp_logger.info('T1s: %s' % T1s)
+            print("I am looking on: %s" % T1s)
+            # contoller_pat will extract the port number out of Serial
+            # interface
             if controller_pat.search(T1s):
                 multilink_members["interface"][T1s].update({"alarms": []})
+                multilink_members["interface"][T1s].update(
+                    {"description": ""})
                 # show controllers T1 0/1/1 brief | i Description|State:
-                self.command = "show controllers T1 "
-                self.command += controller_pat.search(T1s).group(1) + " brief"
-                self.command += " | i Description|State:"
-                output = self.run_cisco_commands()
+                # if regex fails to find value it will insert None
+                # to description and alarms key values
+                try:
+                    self.command = "show controllers T1 "
+                    # added parenthesis to split longer than 79 characters
+                    self.command += (controller_pat.search(T1s).group(1) +
+                                     " brief")
+                    self.command += " | i Description|State:"
+                    output = self.run_cisco_commands()
+                except TypeError:
+                    # assign default values if regex cannot be processed
+                    # of if returns blank
+                    (multilink_members["interface"][T1s]
+                        ["description"]) = "Not Able to Retrieve"
+                    (multilink_members["interface"][T1s]
+                        ["alarms"]) = "Not able to Retrieve"
+                # if try above succeeds it will assign the Description
+                # and alamrs values to dictionary
                 for line in output:
-                    if "Description" in line:
-                        multilink_members["interface"][T1s]["description"].append(
-                            line)
-                    if "State:" in line:
-                        multilink_members["interface"][T1s]["alarms"].append(
-                            line)
+                    bgp_logger.info('LINE: %s' % line)
+                    if line:
+                        if "Description" in line:
+                            (multilink_members["interface"][T1s]
+                                ["description"]) = line
+                        if "AIS" in line:
+                            (multilink_members["interface"]
+                                [T1s]["alarms"]) = line
+                    else:
+                        (multilink_members["interface"][T1s]
+                            ["description"]) = "Not able to retrieve"
+                        (multilink_members["interface"]
+                            [T1s]["alarms"]) = "Not able to retrieve"
         return multilink_members
 
     def clean_clogin_output(self, clogin_output):
@@ -775,19 +847,6 @@ class Recommendations(object):
             bgp_logger.info("TUNNEL CONFIGURAITON CHECK: PASS")
             return True
 
-
-class MultilinkCheck(object):
-    '''
-    This class contains methods that will help identify Multilink members
-    and also check each individual status for any alarms on each T1
-    '''
-    def identify_members(self):
-        pass
-
-    def _show_ip_interface(self):
-        pass
-
-
 def argument_parser():
     ''' Run argument parser to verify what user wants to do '''
     parser = OptionParser(usage="\nOPTION: %prog -d <ci_name> "
@@ -827,18 +886,26 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
     bgp = CiscoCommands(ci_fqdn)
 
     # find is neighbor IP is managed by CDW
-    print("\n")
-    print("I AM LOOKING FOR NEIGHBOR IP ADDRESS -> %s,"
-          " ENTRY ON THIS BMN\n" % neighbor_ip)
+    print("CHECKING ON NEIGHBOR IP ADDRESS: %s\n" % neighbor_ip)
+
     findstring = RunFindstring(neighbor_ip)
     cdw_managed = findstring.find_managed()
+
     if cdw_managed:
         print("NEIGHBOR IP ADDRESS: %s,"
-              " IS MANAGED BY CDW: %s\n" % (neighbor_ip, cdw_managed))
+              " IS MANAGED BY CDW ON THIS BMN, NAME: %s\n" % (neighbor_ip,
+                                                              cdw_managed))
         bgp_logger.info('Neighbor IP ID: %s' % cdw_managed)
     else:
-        print("NEIGHBOR IP ADDRESS: %s IS NOT MANAGED BY CDW\n" %
+        print("NEIGHBOR IP ADDRESS: %s IS NOT MANAGED BY CDW ON THIS BMN\n" %
               neighbor_ip)
+
+    # Verify Connectivity to device, if no connectivity stop the script
+    print("I NEED TO VERIFY CONNECTIVITY TO: %s" % ci_fqdn)
+    ping_test = VerifyUserInput(ci_fqdn)
+    ping = ping_test.test_connectivity()
+    if ping is True:
+        print(" CONNECTIVITY IS \"OK\"...\n")
 
     # Verify if device is configured with BGP
     bgp_as = bgp.verify_ip_protocols()
@@ -846,9 +913,7 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
     # initialize vrf_name to None
     vrf_name = False
     if bgp_as:
-        # display show ip bgp summary
-        pp = pprint.PrettyPrinter(indent=2)
-
+        # run show ip bgp summary command against device
         bgp_summary = bgp.show_bgp_summary(neighbor_ip)
         if bgp_summary:
             verify = Recommendations(neighbor_ip, bgp_summary)
@@ -898,14 +963,6 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
             else:
                 # run pings against the vrf and telco ip
                 gateway_ip, cef_interface = bgp.show_ip_cef(neighbor_ip)
-
-                # if Multilink interface, the script is going to pull the
-                # member interfaces to retreive individual status UP or
-                # alarms
-                if 'Multilink' in cef_interface:
-                    # multilink = MultilinkCheck(cef_interface)
-                    multilink_members_dict = bgp.show_multilink_members()
-                    pp.pprint(multilink_members_dict)
                 intf_description = bgp.show_intf_desciption(cef_interface)
                 bgp_logger.info("ISP DESC: %s" % intf_description)
 
@@ -961,8 +1018,24 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                 # alarms
                 if 'Multilink' in cef_interface:
                     # multilink = MultilinkCheck(cef_interface)
+                    bgp_logger.info("MULTILINK: %s" % cef_interface)
                     multilink_members_dict = bgp.show_multilink_members()
-                    pp.pprint(multilink_members_dict)
+                    if multilink_members_dict["inactive"]:
+                        print("I found %s T1(s) inactive\n"
+                              "This needs to be verified a little more.\n"
+                              "I suggest open a ticket with the carrier.\n")
+                    if multilink_members_dict["active"]:
+                        print("All members of the Multilink are Active\n"
+                              "check for ALARMS in the summary below.")
+                    print("")
+                    print("Summary Multilink State: ")
+                    for interfaces in multilink_members_dict["interface"]:
+                        print("- %s %s\nALARMS: %s" %
+                              (interfaces,
+                               (multilink_members_dict["interface"]
+                                [interfaces]["description"]),
+                               (multilink_members_dict["interface"]
+                                [interfaces]["alarms"])))
                 intf_description = bgp.show_intf_desciption(cef_interface)
                 bgp_logger.info("ISP DESC: %s" % intf_description)
 

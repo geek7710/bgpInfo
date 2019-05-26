@@ -21,3 +21,6 @@ Multilink1
     Se0/1/3:0, since 2w0d
 No inactive multilink interfaces
 RCCB-COACHELLA-R1#
+
+
+sudo -u binc -c "show "
