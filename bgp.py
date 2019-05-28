@@ -6,7 +6,6 @@ import subprocess
 import re
 # import datetime
 import logging
-import pprint
 
 
 class VerifyUserInput(object):
@@ -756,7 +755,7 @@ class Recommendations(object):
             # BGP uptime is weeks or days
             if days:
                 print("BGP Has been ESTABLISHED for: %s" % days)
-                print("I think it's safe to close this ticket.\n"
+                print("It is safe to close this ticket.\n"
                       "Look for any other tickets opened for remote device"
                       " if managed by CDW. Hostname printed above!\n"
                       "If there are tickets on that device, run "
@@ -1038,6 +1037,9 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                                 [interfaces]["alarms"])))
                 intf_description = bgp.show_intf_desciption(cef_interface)
                 bgp_logger.info("ISP DESC: %s" % intf_description)
+                print(" ")
+                print("ISP/Telco Interface description: %s" %
+                      intf_description)
 
             if vrf_name:
                 ping_results = bgp.ping_through_vrf(vrf_name, neighbor_ip)
