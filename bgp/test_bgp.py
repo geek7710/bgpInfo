@@ -1,5 +1,5 @@
-import unittest
-from bgp import LoggerClass, VerifyUserInput
+from unittest.mock import Mock, patch
+import bgp
 
 class TestVerifyuser_input(unittest.TestCase):
     """Testing script on gpi-s-bmn03
