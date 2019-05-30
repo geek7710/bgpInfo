@@ -1,12 +1,25 @@
-from unittest.mock import mock, patch, TestCase
-import bgp
+import unittest
+from unittest.mock import Mock, patch
+from bgp import VerifyUserInput, LoggerClass
 
-class TestVerifyUserInput(TestCase):
+class Error(Exception):
+    pass
 
-    reference = bgp.VerifyUserInput('ciName')
+class TestVerifyUserInput(unittest.TestCase):
 
-    @patch(bgp.subprocess)
-    @patch(bgp.logging)
-    def test_verify_etc_hosts(self, mock_logging, mock_subp):
-        mock_logging.info('verify etc/hosts')
-        self.assertFalse(mock_subp)
+    def setUp(self):
+        self.logger = LoggerClass()
+        self.logger.logging()
+
+    @patch('bgp.subprocess.Popen')
+    def test_etc_hosts_True(self, mock_subproc):
+        reference = VerifyUserInput('some output')
+        process_mock = Mock(reference.verify_etc_hosts())
+        attrs = {'communicate()[0]': ('some output')}
+        process_mock.configure_mock(**attrs)
+        mock_subproc.return_value = process_mock
+        self.assertTrue(mock_subproc.called)
+
+
+if __name__ == '__main__':
+    unittest.main()

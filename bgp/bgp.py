@@ -21,33 +21,36 @@ class VerifyUserInput(object):
         self.ci_list = []
         self.ci_count = []
 
-    def verify_etc_hosts(self):
-        bgp_logger.info('verify_etc_hosts() method')
-        ''' run cat /etc/hosts and get list of devices '''
-        # declaring function scope variable
-        print(" ")
-        print("I AM CHECKING THE CI NAME AGAINST \"/etc/hosts\" ENTRIES "
-              "ON THIS BMN")
-        print(" ")
+    def verify_ci(self):
+        bgp_logger.info('verify_ci() method')
         if self.ci_name is None:
             print("YOU DIDN'T INCLUDE DEVICE NAME!")
             return False
         else:
-            try:
-                proc = subprocess.Popen(
-                    ['cat', '/etc/hosts'], stdout=subprocess.PIPE)
-                grep = subprocess.Popen(
-                    ['grep', self.ci_name],
-                    stdin=proc.stdout, stdout=subprocess.PIPE)
+            return True
 
-                self.stdout = grep.communicate()[0]
-                self.stdout = self.stdout.split('\n')
-                bgp_logger.info('SELF.STDOUT_FINDSTRING: %s' % self.stdout)
+    def verify_etc_hosts(self):
+        ''' run cat /etc/hosts and get list of devices '''
+        # declaring function scope variable
+        bgp_logger.info('verify_etc_hosts() method')
+        print(" ")
+        print("I AM CHECKING THE CI NAME AGAINST \"/etc/hosts\" ENTRIES "
+              "ON THIS BMN")
+        print(" ")
+        try:
+            proc = subprocess.Popen(
+                ['cat', '/etc/hosts'], stdout=subprocess.PIPE)
+            grep = subprocess.Popen(
+                ['grep', self.ci_name],
+                stdin=proc.stdout, stdout=subprocess.PIPE)
 
-            except Exception as err:
-                bgp_logger.info(err)
-                raise SystemExit(
-                    "I am not able to find your BGP ROUTER on this BMN\n")
+            self.stdout = grep.communicate()[0]
+            self.stdout = self.stdout.split('\n')
+            bgp_logger.info('SELF.STDOUT_FINDSTRING: %s' % self.stdout)
+        except Exception as err:
+            bgp_logger.info(err)
+            raise SystemExit(
+                "I am not able to find your BGP ROUTER on this BMN\n")
         # Initialize the verified variable if ci_name is not found in
         # /etc/hosts script will exit
         self.stdout = self.filter_findstring_output()
@@ -868,11 +871,18 @@ def argument_parser():
     (options, args) = parser.parse_args()
     if options.ci_name and options.neighbor_ip:
         user_input = VerifyUserInput(options.ci_name)
-        ci_name_verified = user_input.verify_etc_hosts()
-        if not ci_name_verified:
+
+        # verify ci_name is not empty
+        ci_name_not_empty = user_input.verify_ci()
+        if ci_name_not_empty:
+            ci_name_bmn = user_input.verify_etc_hosts()
+        else:
+            ci_name_bmn = False
+
+        if not ci_name_bmn:
             raise SystemExit('Terminating Script!')
         else:
-            return (ci_name_verified, options.neighbor_ip)
+            return (ci_name_bmn, options.neighbor_ip)
     else:
         parser.error("You need to provide ci_name and BGP Neighbor"
                      " IP to run this Script\n\n")
