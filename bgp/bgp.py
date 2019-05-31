@@ -65,8 +65,9 @@ class VerifyUserInput(object):
             # because self.stdout was turned into a list, it now needs to
             # return the single item stripped out of list
             bgp_logger.info('RETURN FROM ETC/HOST %s' % self.stdout)
+            print("!")
             print("I FOUND A VALID ENTRY! ...")
-            print()
+            print("!")
             return self.stdout
 
     def verify_multiple_entries(self):
@@ -85,7 +86,7 @@ class VerifyUserInput(object):
                 self.print_menu()
                 # prompt user to select device run the script on
                 try:
-                    selection = int(raw_input("Choise# "))
+                    selection = int(raw_input("Choice# "))
                     selection = selection - 1
                     if selection in self.ci_list:
                         break
@@ -550,7 +551,9 @@ class CiscoCommands(RecursiveLookup):
         self.command = "show ip bgp summary"
         output = self.run_cisco_commands()
         if output:
-            print('BGP SUMMARY INFORMATION:\n')
+            print("!")
+            print('BGP SUMMARY INFORMATION:')
+            print("!")
             for line in output[1:]:
                 print(line)
             print(" ")
@@ -967,12 +970,16 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                 intf_description = bgp.show_intf_desciption(cef_interface)
                 bgp_logger.info("ISP DESC: %s" % intf_description)
                 print(" ")
+                if not intf_description:
+                    intf_description = "Not Found"
                 print("ISP Interface description: %s" %
                       intf_description)
             else:
                 # run pings against the vrf and telco ip
                 gateway_ip, cef_interface = bgp.show_ip_cef(neighbor_ip)
                 intf_description = bgp.show_intf_desciption(cef_interface)
+                if not intf_description:
+                    intf_description = "Not Found"
                 bgp_logger.info("ISP DESC: %s" % intf_description)
 
             if nexthop_isp:
@@ -1017,6 +1024,8 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                 intf_description = bgp.show_intf_desciption(cef_interface)
                 bgp_logger.info("ISP DESC: %s" % intf_description)
                 print(" ")
+                if not intf_description:
+                    intf_description = "Not Found"
                 print("ISP/Telco Interface description: %s" %
                       intf_description)
             else:
@@ -1029,11 +1038,15 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                     # multilink = MultilinkCheck(cef_interface)
                     bgp_logger.info("MULTILINK: %s" % cef_interface)
                     multilink_members_dict = bgp.show_multilink_members()
-                    if multilink_members_dict["inactive"]:
+                    if int(multilink_members_dict["inactive"]) > 0:
+                        print("!")
                         print("I found %s T1(s) inactive\n"
                               "This needs to be verified a little more.\n"
-                              "I suggest open a ticket with the carrier.\n")
+                              "I suggest open a ticket with the carrier.\n!" %
+                              multilink_members_dict["inactive"])
                     if multilink_members_dict["active"]:
+                        print("")
+                        print("")
                         print("All members of the Multilink are Active\n"
                               "check for ALARMS in the summary below.")
                     print("")
@@ -1048,6 +1061,8 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                 intf_description = bgp.show_intf_desciption(cef_interface)
                 bgp_logger.info("ISP DESC: %s" % intf_description)
                 print(" ")
+                if not intf_description:
+                    intf_description = "Not Found"
                 print("ISP/Telco Interface description: %s" %
                       intf_description)
 
