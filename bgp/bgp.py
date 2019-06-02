@@ -17,7 +17,6 @@ class VerifyUserInput(object):
     def __init__(self, ci_name=None):
         self.ci_name = ci_name
         self.verified = False
-        self.stdout = None
         self.ci_list = []
         self.ci_count = []
 
@@ -44,39 +43,29 @@ class VerifyUserInput(object):
                 ['grep', self.ci_name],
                 stdin=proc.stdout, stdout=subprocess.PIPE)
 
-            self.stdout = grep.communicate()[0]
-            self.stdout = self.stdout.split('\n')
-            bgp_logger.info('SELF.STDOUT_FINDSTRING: %s' % self.stdout)
+            stdout = grep.communicate()[0]
+            stdout = stdout.split('\n')
+            bgp_logger.info('SELF.STDOUT_FINDSTRING: %s' % stdout)
         except Exception as err:
             bgp_logger.info(err)
             raise SystemExit(
                 "I am not able to find your BGP ROUTER on this BMN\n")
-        # Initialize the verified variable if ci_name is not found in
-        # /etc/hosts script will exit
-        self.stdout = self.filter_findstring_output()
-        self.stdout = self.verify_multiple_entries()
 
         # verified will be None if no FQDN was found
-        if not self.stdout:
+        if not stdout:
             print("I cannot find %s as a managed device"
                   " in this BMN" % self.ci_name)
             return False
         else:
-            # because self.stdout was turned into a list, it now needs to
-            # return the single item stripped out of list
-            bgp_logger.info('RETURN FROM ETC/HOST %s' % self.stdout)
-            print("!")
-            print("I FOUND A VALID ENTRY! ...")
-            print("!")
-            return self.stdout
+            return stdout
 
-    def verify_multiple_entries(self):
+    def verify_multiple_entries(self, findstring_output):
         '''
         If multiple devices with similiar name are found,
         prompt user which device is the script going to run on
         '''
         bgp_logger.info('verify_multiple_entries() method')
-        for line in self.stdout:
+        for line in findstring_output:
             if self.ci_name in line:
                 self.ci_count.append(line)
         # go to print_menu, if user selects wrong
@@ -99,7 +88,6 @@ class VerifyUserInput(object):
                     print("INPUT ERROR: %s" % err)
                     print("You enter and INVALID option. "
                           "Please Try again:\n")
-
             bgp_logger.info("SELECTION: %s" % self.ci_count[selection])
             return self.ci_count[selection]
         else:
@@ -127,7 +115,7 @@ class VerifyUserInput(object):
             print(" %d) %s\n" % (index + 1, ci))
         return self.ci_list
 
-    def filter_findstring_output(self):
+    def filter_findstring_output(self, etc_stdout):
         '''
         filter out unneeded fields and return only log ci_name
         "wp-hauppauge-sw.gpi.remote.hms.cdw.com"
@@ -135,7 +123,7 @@ class VerifyUserInput(object):
         filtered = []
         bgp_logger.info('filter_findstring_output() methods')
         host_pattern = re.compile(r'(%s)' % self.ci_name, re.IGNORECASE)
-        for line in self.stdout:
+        for line in etc_stdout:
             bgp_logger.info('LINE: %s' % line)
             if host_pattern.search(line):
                 self.verified = True
@@ -145,7 +133,11 @@ class VerifyUserInput(object):
                     ci_fqdn = line.split()[1]
                     filtered.append(ci_fqdn)
         bgp_logger.info("FILTERED FINDSTRING: %s" % filtered)
-        return filtered
+        findstring_stdout = filtered
+        if not findstring_stdout:
+            return False
+        else:
+            return findstring_stdout
 
     def test_connectivity(self):
         '''
@@ -252,7 +244,7 @@ class LoggerClass(object):
         global bgp_logger
         bgp_logger = logging.getLogger(__name__)
         bgp_logger.setLevel(logging.INFO)
-        bgp_logger.disabled = True
+        bgp_logger.disabled = False
 
         # self.file_log = logging.FileHandler(log_filename)
         # self.file_log.setLevel(logging.INFO)
@@ -852,6 +844,44 @@ class Recommendations(object):
             bgp_logger.info("TUNNEL CONFIGURAITON CHECK: PASS")
             return True
 
+
+def user_input_checker(input_instance):
+    bgp_logger.info('user_input_checker() method')
+    # lookup ci _name under /etc/hosts file
+    etc_stdout = input_instance.verify_etc_hosts()
+    # filter findstring output, only get line where ci name is
+    if etc_stdout:
+        findstr = input_instance.filter_findstring_output(etc_stdout)
+        # if multiple lines are returned, generate menu and let
+        # user choose appropriate ci name
+        if findstr:
+            return(input_instance.verify_multiple_entries(findstr))
+    else:
+        return False
+
+
+def validate_ci_name(ci_name):
+    bgp_logger.info('validate_ci_name() method')
+    # Verify ci_name is not empty
+    input_instance = VerifyUserInput(ci_name)
+    # verify ci_name is not empty, if ci_name is empty
+    # terminate script
+    ci_name_not_empty = input_instance.verify_ci()
+    # if ci_name is not empty verify input agains /etc/hosts
+    # in BMN
+    if ci_name_not_empty:
+        ci_name_bmn = user_input_checker(input_instance)
+    else:
+        ci_name_bmn = False
+
+    if not ci_name_bmn:
+        raise SystemExit('Terminating Script!')
+    else:
+        print("DEVICE NAME VERIFIED OK... PROCEEDING!")
+        print(" ")
+        return (ci_name_bmn)
+
+
 def argument_parser():
     ''' Run argument parser to verify what user wants to do '''
     parser = OptionParser(usage="\nOPTION: %prog -d <ci_name> "
@@ -872,20 +902,13 @@ def argument_parser():
                       dest="neighbor_ip",
                       help="BGP Neighbor IP address is a REQUIREMENT",)
     (options, args) = parser.parse_args()
+
+    # if ci_name and neighbor_ip were entered, proceed...
     if options.ci_name and options.neighbor_ip:
-        user_input = VerifyUserInput(options.ci_name)
-
-        # verify ci_name is not empty
-        ci_name_not_empty = user_input.verify_ci()
-        if ci_name_not_empty:
-            ci_name_bmn = user_input.verify_etc_hosts()
-        else:
-            ci_name_bmn = False
-
-        if not ci_name_bmn:
-            raise SystemExit('Terminating Script!')
-        else:
-            return (ci_name_bmn, options.neighbor_ip)
+        # verify ci_name agains /etc/hosts
+        ci_name = validate_ci_name(options.ci_name)
+        # if no match was found on /etc/hosts
+        return(ci_name, options.neighbor_ip)
     else:
         parser.error("You need to provide ci_name and BGP Neighbor"
                      " IP to run this Script\n\n")
@@ -917,7 +940,8 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
     ping_test = VerifyUserInput(ci_fqdn)
     ping = ping_test.test_connectivity()
     if ping is True:
-        print(" CONNECTIVITY IS \"OK\"...\n")
+        print(" ")
+        print("CONNECTIVITY IS \"OK\"... PROCEEDING!\n")
 
     # Verify if device is configured with BGP
     bgp_as = bgp.verify_ip_protocols()

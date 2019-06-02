@@ -1,34 +1,25 @@
+#!/usr/bin/env python
 import unittest
-from unittest.mock import Mock, patch
-from bgp import VerifyUserInput, LoggerClass
+from unittest import mock
+import bgp
 
-class Error(Exception):
-    pass
 
 class TestVerifyUserInput(unittest.TestCase):
 
     def setUp(self):
-        self.logger = LoggerClass()
+        self.logger = bgp.LoggerClass()
         self.logger.logging()
 
-    @patch('bgp.subprocess.Popen')
-    def test_etc_hosts_True(self, mock_subproc):
-        reference = VerifyUserInput('mbus-cid-rtr1')
-        process_mock = Mock(reference.verify_etc_hosts())
-        attrs = {'communicate()[0]': ('mbus-cid-rtr1', 'error')}
-        process_mock.configure_mock(**attrs)
-        mock_subproc.return_value = 'mbus-cid-rtr1.reyes.remote.hms.cdw.com'
-        self.assertTrue(mock_subproc.called)
-
-
-@patch('VerifyUserInput.verify_etc_hosts')
-class test_class(mock_verify_etc):
-
-    def test_etc_hosts(self):
-        test_class.mock_verify_etc.return_value = 'mbus-cid-rtr1.reyes.remote.hms.cdw.com'
-        test_class.mock_verify_etc.assert_called()
-
-
+    @mock.patch("bgp.VerifyUserInput")
+    def test_verify_user_input_class(self, mock_verify_user_class):
+        mock_instance = mock_verify_user_class('mbus-cid-rtr1')
+        mock_instance.return_value.verify_etc_hosts.return_value = 'mbus-cid-rtr1.reyes.remote.hms.cdw.com'
+        process_mock = mock_instance.verify_etc_hosts()
+        mock_instance.return_value.filter_findstring_output.return_value = 'mbus-cid-rtr1.reyes.remote.hms.cdw.com'
+        output = mock_instance.filter_findstring_output()
+        mock_instance.return_value.verify_multiple_entries.return_value = 'mbus-cid-rtr1.reyes.remote.hms.cdw.com'
+        output = mock_instance.verify_multiple_entries()
+        print(output)
 
 
 if __name__ == '__main__':
