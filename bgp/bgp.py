@@ -7,6 +7,13 @@ import re
 # import datetime
 import logging
 
+# -*- coding: utf-8 -*-
+__author__ = "Miguel Bonilla"
+__copyright__ = "Copyright 2019, CDW"
+__version__ = "1.0"
+__maintainer__ = "Miguel Bonilla"
+__email__ = "migboni@cdw.com"
+
 
 class VerifyUserInput(object):
     """

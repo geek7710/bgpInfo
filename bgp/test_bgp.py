@@ -4,22 +4,30 @@ from unittest import mock
 import bgp
 
 
-class TestVerifyUserInput(unittest.TestCase):
+class raise_exception(Exception):
+    print("I Crashed!!!")
 
-    def setUp(self):
-        self.logger = bgp.LoggerClass()
-        self.logger.logging()
+class test_VerifyUserInput(unittest.TestCase):
+    @mock.patch("bgp.subprocess")
+    def test_subprocess_fail(self, mock_subprocess):
+        process_mock = mock.Mock()
+        attrs = {'communicate.return_value': (
+            '10.255.251.250\tmbus-cid-rtr1.reyes.remote.hms.cdw.com\tmbus-cid-rtr1',
+            "error")}
+        process_mock.configure_mock(**attrs)
+        mock_subprocess.side_effect = raise_exception
+        try:
+            proc = mock_subprocess(
+                    ['cat', '/etc/hosts'], stdout=mock_subprocess.PIPE)
+            stdout = proc.communicate()[0]
+            print(stdout)
+        except Exception as err:
+            print(err)
 
     @mock.patch("bgp.VerifyUserInput")
-    def test_verify_user_input_class(self, mock_verify_user_class):
-        mock_instance = mock_verify_user_class('mbus-cid-rtr1')
-        mock_instance.return_value.verify_etc_hosts.return_value = 'mbus-cid-rtr1.reyes.remote.hms.cdw.com'
-        process_mock = mock_instance.verify_etc_hosts()
-        mock_instance.return_value.filter_findstring_output.return_value = 'mbus-cid-rtr1.reyes.remote.hms.cdw.com'
-        output = mock_instance.filter_findstring_output()
-        mock_instance.return_value.verify_multiple_entries.return_value = 'mbus-cid-rtr1.reyes.remote.hms.cdw.com'
-        output = mock_instance.verify_multiple_entries()
-        print(output)
+    def test_verify_user_input(self, mock_user_input):
+        instance = mock_user_input('mbus-cid-rtr1')
+        stdout = instance.verify_etc_hosts()
 
 
 if __name__ == '__main__':
