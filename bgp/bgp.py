@@ -14,6 +14,12 @@ __version__ = "1.0"
 __maintainer__ = "Miguel Bonilla"
 __email__ = "migboni@cdw.com"
 
+'''
+This script will help with gathering BGP neighbor information
+and extracting MPLS/Carrier interface to open a carrier ticket
+if determined that it is needed.
+'''
+
 
 class VerifyUserInput(object):
     """
