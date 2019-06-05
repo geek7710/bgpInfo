@@ -257,7 +257,7 @@ class LoggerClass(object):
         global bgp_logger
         bgp_logger = logging.getLogger(__name__)
         bgp_logger.setLevel(logging.INFO)
-        bgp_logger.disabled = False
+        bgp_logger.disabled = True
 
         # self.file_log = logging.FileHandler(log_filename)
         # self.file_log.setLevel(logging.INFO)
@@ -590,7 +590,7 @@ class CiscoCommands(RecursiveLookup):
             self.command = 'show ip cef ' + ip_address
         output = self.run_cisco_commands()
         cef_interface_pattern = re.compile(
-            r'(?:\s+)(\S+)(?:\s+)([MTGESC]\S+)$')
+            r'(?:\s+)(\S+)(?:\s+)([MTGESC]\S+)')
 
         ip_pattern = re.compile(r'(\d+\.\d+\.\d+.\d+)')
 
