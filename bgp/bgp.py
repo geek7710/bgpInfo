@@ -10,7 +10,7 @@ import logging
 # -*- coding: utf-8 -*-
 __author__ = "Miguel Bonilla"
 __copyright__ = "Copyright 2019, CDW"
-__version__ = "1.0"
+__version__ = "1.2"
 __maintainer__ = "Miguel Bonilla"
 __email__ = "migboni@cdw.com"
 
@@ -196,7 +196,7 @@ class VerifyUserInput(object):
                              % self.ci_name)
 
 
-class RunFindstring(object):
+class RunFindString(object):
     '''
     Run findstring on neighbor IP to verify if it is managed by CDW
     '''
@@ -257,7 +257,7 @@ class LoggerClass(object):
         global bgp_logger
         bgp_logger = logging.getLogger(__name__)
         bgp_logger.setLevel(logging.INFO)
-        bgp_logger.disabled = True
+        bgp_logger.disabled = False
 
         # self.file_log = logging.FileHandler(log_filename)
         # self.file_log.setLevel(logging.INFO)
@@ -415,6 +415,9 @@ class CiscoCommands(RecursiveLookup):
     def verify_ip_protocols(self):
         ''' This method will verify BGP is configured '''
         bgp_logger.info('verify_ip_protocols() method')
+        print()
+        print("ENTER YOUR RSA PASSCODE IF ASKED FOR IT")
+        print()
         self.command = 'show ip protocol'
         bgp_as_pattern = re.compile(r'(bgp\s+\d+)')
         output = self.run_cisco_commands()
@@ -554,11 +557,14 @@ class CiscoCommands(RecursiveLookup):
         '''
         bgp_logger.info('show_bgp_neighbor method()')
         self.command = "show ip bgp summary"
+        print()
+        print("HOLD ON WHILE I RETRIEVE BGP SUMMARY INFORMATION")
+        print()
         output = self.run_cisco_commands()
         if output:
-            print("!")
-            print('BGP SUMMARY INFORMATION:')
-            print("!")
+            print("------------------------")
+            print("BGP SUMMARY INFORMATION:")
+            print("------------------------")
             for line in output[1:]:
                 print(line)
             print(" ")
@@ -612,9 +618,28 @@ class CiscoCommands(RecursiveLookup):
 
         dmvpn_output_pattern = re.compile(r'(?:^\s+\d+\s)(\S+)(?:\s+\S+\s+)')
         output = self.run_cisco_commands()
+        # initialize tunnel destination IP to False
+        nbma_ip = False
         for line in output[1:]:
             if dmvpn_output_pattern.search(line):
-                return dmvpn_output_pattern.search(line).group(1)
+                nbma_ip = dmvpn_output_pattern.search(line).group(1)
+        return nbma_ip
+
+    def show_dmvpn(self, neighbor_ip):
+        ''' Extract dmvpn tunnel(s) configured on the router,
+            this will help determine the NBMA address used as tunnel
+            destination.'''
+        bgp_logger.info('show_dmvpn() method')
+        self.command = ('show dmvpn')
+        dmvpn_interfaces_pat = re.compile(r'(?:[I|i]nterface: )(\S+)(?:,.+)')
+        output = self.run_cisco_commands()
+        # append Tunnel interfaces found into a list
+        tunnels = []
+        for line in output[1:]:
+            if dmvpn_interfaces_pat.search(line):
+                tunnels.append(dmvpn_interfaces_pat.search(line).group(1))
+        bgp_logger.info(tunnels)
+        return tunnels
 
     def show_vrf_config(self, vrf_name):
         ''' this method will verify if nbma address
@@ -698,6 +723,30 @@ class CiscoCommands(RecursiveLookup):
             return vrf_name
         else:
             return False
+
+    def extract_tunnel_destination(self, tunnel_id):
+        '''
+        In the absense of DMVPN configuration, Tunnel only has
+        source IP and destination IP. This method will extract
+        that destination IP from the Tunnel Interface
+        '''
+        bgp_logger.info('extract_tunnel_destination()')
+        self.command = "show run int " + tunnel_id + " | i destination"
+        output = self.run_cisco_commands()
+        tunnel_destination_pat = re.compile(
+            r'(?:tunnel\s+destination\s+)(\S+)')
+        dest_ip = False
+        for line in output:
+            if tunnel_destination_pat.search(line):
+                dest_ip = tunnel_destination_pat.search(line).group(1)
+        return dest_ip
+
+    def list_tunnel_interfaces(self):
+        '''
+        List Tunnel interfaces configured on a Router. If Tunnel interfaces
+        are found show dmvpn will be used to find Tunnel destination IP.
+        If no Tunnel interface is found, then use CEF
+        '''
 
 
 class Recommendations(object):
@@ -934,7 +983,7 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
     bgp = CiscoCommands(ci_fqdn)
 
     # find is neighbor IP is managed by CDW
-    print("CHECKING ON NEIGHBOR IP ADDRESS: %s\n" % neighbor_ip)
+    print("LOOKING AT NEIGHBOR IP ADDRESS: %s\n" % neighbor_ip)
 
     findstring = RunFindstring(neighbor_ip)
     cdw_managed = findstring.find_managed()
@@ -949,7 +998,7 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
               neighbor_ip)
 
     # Verify Connectivity to device, if no connectivity stop the script
-    print("I NEED TO VERIFY CONNECTIVITY TO: %s" % ci_fqdn)
+    print("TESTING CONNECTIVITY TO: %s" % ci_fqdn)
     ping_test = VerifyUserInput(ci_fqdn)
     ping = ping_test.test_connectivity()
     if ping is True:
@@ -984,11 +1033,28 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
         if 'Tunnel' in cef_interface:
             # print tunnel interface associated to this BGP neighbo_ip
             print()
-            print("Associated Tunnel Interface: %s" % cef_interface)
+            print('I found a Tunnel Interface associated to this BGP Neighbor')
+
+            # find all the dmvpn tunnels to look for NBMA IP address
+            tunnels = bgp.show_dmvpn(neighbor_ip)
+            bgp_logger.info(tunnels)
 
             # run dmvpn command to get tunnel destination telco ip
-            nexthop_isp = bgp.show_dmvpn_interface(cef_interface,
-                                                   neighbor_ip)
+            nexthop_isp = False
+            if tunnels:
+                for tunnel in tunnels:
+                    bgp_logger.info("Tunnel: " + tunnel)
+                    nexthop_isp = bgp.show_dmvpn_interface(
+                        tunnel, neighbor_ip)
+                    # if nbma ip address was found exit the loop
+                    if nexthop_isp:
+                        cef_interface = tunnel
+                        break
+            else:
+                nexthop_isp = bgp.extract_tunnel_destination(cef_interface)
+            print()
+            print("Tunnel Interface: %s" % cef_interface)
+
             bgp_logger.info("TELCO IP: %s" % nexthop_isp)
 
             # get tunnel vrf name if configured
@@ -1020,6 +1086,7 @@ def bgp_orchestrator(ci_fqdn, neighbor_ip):
                 bgp_logger.info("ISP DESC: %s" % intf_description)
 
             if nexthop_isp:
+                print("Hold on! Testing ISP/Telco Connectivity...")
                 if vrf_name:
                     # ping accross ISP network
                     ping_results = bgp.ping_through_vrf(vrf_name, nexthop_isp)

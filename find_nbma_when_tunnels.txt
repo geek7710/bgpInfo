@@ -1,0 +1,72 @@
+BGP adjacency is down for neighbor 139.69.52.75  Log message: <189>Jun 27 11:33:06 r-greenriver-4331.komat.remote.hms.cdw.com 6191: Jun 27 16:33:04.565 GMT: %
+
+1. Run "show dmvpn"
+
+r-greenriver-4331#sh dmvpn 
+Legend: Attrb --> S - Static, D - Dynamic, I - Incomplete
+        N - NATed, L - Local, X - No Socket
+        T1 - Route Installed, T2 - Nexthop-override
+        C - CTS Capable, I2 - Temporary
+        # Ent --> Number of NHRP entries with same NBMA peer
+        NHS Status: E --> Expecting Replies, R --> Responding, W --> Waiting
+        UpDn Time --> Up or Down Time for a Tunnel
+==========================================================================
+
+Interface: Tunnel200, IPv4 NHRP Details 
+Type:Spoke, NHRP Peers:7, 
+
+ # Ent  Peer NBMA Addr Peer Tunnel Add State  UpDn Tm Attrb
+ ----- --------------- --------------- ----- -------- -----
+     2 50.236.32.186      139.69.51.27    UP 00:24:58   DT1
+                          139.69.51.27    UP 00:24:58   DT2
+     3 67.22.163.7        139.69.51.35    UP 03:51:24   DT1
+                          139.69.51.35    UP 03:51:24   DT2
+                          139.69.51.35    UP 03:51:24   DT2
+     1 24.204.56.218      139.69.51.75    UP    1d11h     S
+     3 173.224.240.84    139.69.51.122    UP 01:10:10   DT1
+                         139.69.51.122    UP 01:10:10   DT2
+                         139.69.51.122    UP 01:10:10   DT2
+     3 206.16.171.116    139.69.51.224    UP 01:34:37   DT1
+                         139.69.51.224    UP 01:34:37   DT2
+                         139.69.51.224    UP 01:34:37   DT2
+     3 96.11.52.194      139.69.51.245    UP 00:04:22   DT1
+                         139.69.51.245    UP 00:04:22   DT2
+                         139.69.51.245    UP 00:04:22   DT2
+     1 139.69.109.250    139.69.51.250    UP     2w3d     S
+
+Interface: Tunnel300, IPv4 NHRP Details 
+Type:Spoke, NHRP Peers:4, 
+
+ # Ent  Peer NBMA Addr Peer Tunnel Add State  UpDn Tm Attrb
+ ----- --------------- --------------- ----- -------- -----
+     3 96.66.185.29       139.69.52.27    UP 00:25:23   DT1
+                          139.69.52.27    UP 00:25:23   DT2
+                          139.69.52.27    UP 00:25:23   DT2
+     2 162.250.22.98      139.69.52.35    UP    1d01h   DT1
+                          139.69.52.35    UP    1d01h   DT2
+     1 24.204.56.219      139.69.52.75    UP 21:04:51     S
+     1 65.30.96.74       139.69.52.250    UP 21:04:28     S
+     
+
+1.1 (Option) show dmvpn | i Interface
+
+r-greenriver-4331#show dmvpn | i Interface
+Interface: Tunnel200, IPv4 NHRP Details 
+Interface: Tunnel300, IPv4 NHRP Details 
+
+
+2. run "show dmvpn interface Tu200 | i 139.69.52.75"
+
+If not output
+
+r-greenriver-4331#show dmvpn interface Tu200 | i 139.69.52.75
+r-greenriver-4331#
+
+Run on 2nd Tunnel
+
+r-greenriver-4331#show dmvpn interface Tu300 | i 139.69.52.75
+     1 24.204.56.219      139.69.52.75    UP 21:09:30     S
+     
+3. Extract NBMA IP address and return it.
+
+

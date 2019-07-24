@@ -1,0 +1,64 @@
+r-greenriver-4331#show dmvpn int tu300
+Legend: Attrb --> S - Static, D - Dynamic, I - Incomplete
+        N - NATed, L - Local, X - No Socket
+        T1 - Route Installed, T2 - Nexthop-override
+        C - CTS Capable, I2 - Temporary
+        # Ent --> Number of NHRP entries with same NBMA peer
+        NHS Status: E --> Expecting Replies, R --> Responding, W --> Waiting
+        UpDn Time --> Up or Down Time for a Tunnel
+==========================================================================
+
+Interface: Tunnel300, IPv4 NHRP Details 
+Type:Spoke, NHRP Peers:2, 
+
+ # Ent  Peer NBMA Addr Peer Tunnel Add State  UpDn Tm Attrb
+ ----- --------------- --------------- ----- -------- -----
+     1 24.204.56.219      139.69.52.75   IKE 00:40:55     S
+     1 65.30.96.74       139.69.52.250  NHRP 00:40:54     S
+
+r-greenriver-4331#
+r-greenriver-4331#sh ip int b
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/0/0   209.193.107.250 YES NVRAM  up                    up      
+GigabitEthernet0/0/1   162.216.119.130 YES NVRAM  up                    up      
+GigabitEthernet0/0/2   160.212.245.82  YES NVRAM  up                    up      
+Cellular0/1/0          unassigned      YES NVRAM  down                  down    
+GigabitEthernet0       unassigned      YES NVRAM  administratively down down    
+Loopback0              192.168.242.145 YES NVRAM  up                    up      
+Loopback190            160.212.190.24  YES NVRAM  up                    up      
+Tunnel0                192.168.242.145 YES unset  up                    up      
+Tunnel200              139.69.51.24    YES NVRAM  up                    up      
+Tunnel300              139.69.52.24    YES NVRAM  up                    down    
+r-greenriver-4331#sh ip cef 24.204.56.219
+0.0.0.0/0
+  nexthop 139.69.51.250 Tunnel200
+r-greenriver-4331#show dmvpn int tu200
+Legend: Attrb --> S - Static, D - Dynamic, I - Incomplete
+        N - NATed, L - Local, X - No Socket
+        T1 - Route Installed, T2 - Nexthop-override
+        C - CTS Capable, I2 - Temporary
+        # Ent --> Number of NHRP entries with same NBMA peer
+        NHS Status: E --> Expecting Replies, R --> Responding, W --> Waiting
+        UpDn Time --> Up or Down Time for a Tunnel
+==========================================================================
+
+Interface: Tunnel200, IPv4 NHRP Details 
+Type:Spoke, NHRP Peers:6, 
+
+ # Ent  Peer NBMA Addr Peer Tunnel Add State  UpDn Tm Attrb
+ ----- --------------- --------------- ----- -------- -----
+     2 50.236.32.186      139.69.51.27    UP 01:47:01   DT1
+                          139.69.51.27    UP 01:47:01   DT2
+     3 67.22.163.7        139.69.51.35    UP    3d04h   DT1
+                          139.69.51.35    UP    3d04h   DT2
+                          139.69.51.35    UP    3d04h   DT2
+     1 24.204.56.218      139.69.51.75    UP    4d16h     S
+     3 206.16.171.116    139.69.51.224    UP 01:26:54   DT1
+                         139.69.51.224    UP 01:26:54   DT2
+                         139.69.51.224    UP 01:26:54   DT2
+     3 96.11.52.194      139.69.51.245    UP 00:56:31   DT1
+                         139.69.51.245    UP 00:56:31   DT2
+                         139.69.51.245    UP 00:56:31   DT2
+     1 139.69.109.250    139.69.51.250    UP    4d16h     S
+
+r-greenriver-4331#

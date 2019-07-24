@@ -1,0 +1,44 @@
+
+[h-custmgmt-msn-2 migboni 15:15:23]~ $ cat /opt/access/bmnlist | grep hcs
+hcs     172.20.1.1      53383   hcs-s-bmn04
+hcs     172.20.1.1      53383   hcs-s-bmn04
+hcs     172.20.1.1      42405   hcs-s-bmn03
+hcs     172.20.1.1      42405   hcs-s-bmn03
+hcs     172.20.1.1      51522   hcs-s-bmn05
+hcs     172.20.1.1      51522   hcs-s-bmn05
+hcs     192.168.42.32   1389    hcs-s-bmn02
+hcs     192.168.43.32   1389    hcs-s-bmn02
+
+
+[h-custmgmt-msn-2 migboni 15:18:20]~ $ cat /opt/access/bmndevicecache2 | grep -i 'S-HCSWAN-MSP-2'
+hcs     hcs-s-bmn03     s-hcswan-msp-2
+
+
+[h-custmgmt-msn-2 migboni 15:19:50]~ $ echo $HOST
+h-custmgmt-msn-2
+
+
+[h-custmgmt-msn-2 migboni 15:19:57]~ $ access -B s-hcswan-msp-2
+Searching for customer OR device 's-hcswan-msp-2'...
+
+BMN hcs-s-bmn03 is used to access device s-hcswan-msp-2.
+
+
+
+
+ACCESSBMNCMD=/opt/bin/cust
+
+
+[h-custmgmt-msn-2 migboni 15:35:47]~ $ /opt/bin/cust -h
+
+Usage: /opt/bin/cust cust|bmn [device] | list [searchstring] | -h | --help
+
+    cust         = the customer abbreviation for the customer's environment you want to connect to.
+    bmn          = the BMN for the customer's environment you want to connect to.
+    device       = optionally, the device you want to connect to after connecting to the BMN.
+    list         = list the available customer abbreviations.
+    searchstring = optionally, used with 'list' to narrow customer list to those containing the searchstring.
+    -h or --help = display this information.
+    
+    
+    

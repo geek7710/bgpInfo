@@ -1,0 +1,2 @@
+RECURRING: BGP adjacency down for neighbor *139.69.52.108  Log message: <189>Jul 10 11:26:36 r-longviewbrinet-4331-2.komat.remote.hms.cdw.com 15151: Jul 10 16
+

@@ -1,0 +1,64 @@
+SCRIPT LOGIC
+1. Does the device has BGP Configured
+	NO:
+		- print BGP is not configured
+		- exit script	
+	YES:
+		- List "show ip bgp summary"
+		- IS NEIGHBOR DOWN (Idle/Active)
+			- YES
+				- print 'Neighbor is down and a Ticket needs to be opened'
+			
+			- NO
+				- Display Uptime
+				- If BGP Uptime is > 1hr 
+					- print to close ticket
+
+
+
+2. Is there any tunnel configured
+	No:
+		- show cef BGP Neighbor
+	
+	YES:
+		- List tunnel interfaces and state(status/protocol)
+		- is DMVPN configured
+			- show dmvpn
+				NO:
+					- get tunnel source and destination
+					- IF SOURCE INTERFACE
+						- pull interface
+						- get interface description
+						- is there a VRF configured on the Tunnel
+							YES:
+								- get vrf name
+								- get vrf physical interface
+								- get physical interface description
+								- CONTINUE with get tunnel destination IP
+							NO:
+								- CONTINUE
+						- get tunnel destination IP
+						- ping tunnel destination IP
+						- print Interface description
+						- print ping results
+				YES:	
+					- show dmvpn interface Tunnel | BGP Neighbor
+					- get tunnel destination IP
+						- Dest IP
+							NO:
+								- print "Need further research, send to Network Team"
+							YES:
+								- Is there vrf configured
+									YES:
+										- get vrf name
+										- get vrf physical interface
+										- get physical interface description
+										- CONTINUE with get tunnel destination IP
+				
+			- Is there a VRF
+				NO:
+					- continue
+				YES:
+					- pull Tunnel vrf and source
+					
+
